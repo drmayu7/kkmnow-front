@@ -58,6 +58,8 @@ robots.txt
 sitemap-0.xml
 sitemap.xml
 
+.claude
+
 # bundle-analyzer
 analyze
 

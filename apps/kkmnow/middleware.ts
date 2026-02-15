@@ -14,7 +14,10 @@ export async function middleware(request: NextRequest) {
   const purpose = headers.get("purpose");
   if (purpose && purpose.match(/prefetch/i)) headers.delete("x-middleware-prefetch"); // empty json bugfix (in the browser headers still show, but here it is gone)
 
-  const token = await get<string>("ROLLING_TOKEN");
+  // Only call edge-config if connection string is available
+  const token = process.env.EDGE_CONFIG
+    ? await get<string>("ROLLING_TOKEN")
+    : undefined;
 
   // Development / Production
   if (["development", "production"].includes(process.env.NEXT_PUBLIC_APP_ENV)) {
