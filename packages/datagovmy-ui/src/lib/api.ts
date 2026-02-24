@@ -27,10 +27,14 @@ const instance = (base: BaseURL, headers: Record<string, string> = {}) => {
     ? ""
     : parseCookies(document.cookie).rolling_token;
 
+  // Only inject x-api-key for calls to NEXT_PUBLIC_API_URL
+  const apiKey = base === "api" ? process.env.NEXT_PUBLIC_API_KEY : undefined;
+
   const config: AxiosRequestConfig = {
     baseURL: urls[base] || base,
     headers: {
       ...(authorization && { Authorization: `Bearer ${authorization}` }),
+      ...(apiKey && { "x-api-key": apiKey }),
       ...headers,
     },
   };
