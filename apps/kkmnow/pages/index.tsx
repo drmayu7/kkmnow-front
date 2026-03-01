@@ -83,11 +83,11 @@ export const getStaticProps: GetStaticProps = withi18n(["kkmnow-home"], async ()
         category: null,
         agency: null,
       },
-      last_updated: data.data_last_updated,
+      last_updated: data.data_last_updated ?? "",
       dashboards: dashboard_route,
-      keystats: data.keystats,
-      timeseries: data.timeseries,
-      timeseries_callout: data.timeseries_callout,
+      keystats: data.keystats ?? { data_as_of: "", data: {} },
+      timeseries: data.timeseries ?? { data_as_of: "", data: {} },
+      timeseries_callout: data.timeseries_callout ?? { data_as_of: "", data: {} },
     },
   };
 });
