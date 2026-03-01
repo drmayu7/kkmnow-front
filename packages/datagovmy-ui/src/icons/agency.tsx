@@ -1393,6 +1393,7 @@ export const AgencyIcon: FunctionComponent<AgencyIconProps> = ({
     "perikanan": JataNegara,
     "pdn": PDNIcon,
     "pdrm": PDRMIcon,
+    "pik": JataNegara,
     "perkeso": SOCSOIcon,
     "phcorp": PHCorpIcon,
     "prasarana": MOTIcon,

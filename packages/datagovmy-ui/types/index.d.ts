@@ -173,6 +173,7 @@ export type Agency =
   | "perikanan"
   | "pdn"
   | "pdrm"
+  | "pik"
   | "perkeso"
   | "phcorp"
   | "prasarana"
