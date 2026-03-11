@@ -12,11 +12,11 @@ import { AKSARA_COLOR } from "datagovmy-ui/constants";
 import {
   BloodDropIcon,
   HeartIcon,
-  VirusIcon,
-  VentilatorIcon,
+  // VirusIcon,
+  // VentilatorIcon,
   MedicalCardIcon,
-  InjectionIcon,
-  HospitalBedIcon,
+  // InjectionIcon,
+  // HospitalBedIcon,
 } from "datagovmy-ui/icons/kkmnow";
 import { DateTime } from "luxon";
 import AgencyIcon from "datagovmy-ui/icons/agency";
@@ -114,42 +114,42 @@ const DashboardIndex: FunctionComponent<DashboardIndexProps> = ({
   const STATS = useMemo<StatProps[]>(() => {
     const ks = keystats?.data ?? {};
     const all: (StatProps | null)[] = [
-      ks.covid
-        ? {
-            icon: <VirusIcon className="h-6 w-6" />,
-            title: "stats.covid",
-            url: routes.COVID_19,
-            value: numFormat(ks.covid.callout, "standard", 0, "long", i18n.language, true),
-            data_as_of: toDate(ks.covid.data_as_of, `dd MMM`, i18n.language),
-          }
-        : null,
-      ks.covid_vax
-        ? {
-            icon: <InjectionIcon className="h-6 w-6" />,
-            title: "stats.covid_vax",
-            url: routes.COVID_VACCINATION,
-            value: numFormat(ks.covid_vax.callout, "standard", 0),
-            data_as_of: toDate(ks.covid_vax.data_as_of, `dd MMM`, i18n.language),
-          }
-        : null,
-      ks.util_bed
-        ? {
-            icon: <HospitalBedIcon className="h-6 w-6" />,
-            title: "stats.util_bed",
-            url: routes.HOSPITAL_BED_UTILISATION,
-            value: numFormat(ks.util_bed.callout, "compact", 1) + "%",
-            data_as_of: toDate(ks.util_bed.data_as_of, "dd MMM", i18n.language),
-          }
-        : null,
-      ks.util_icu
-        ? {
-            icon: <VentilatorIcon className="h-6 w-6" />,
-            title: "stats.util_icu",
-            url: routes.HOSPITAL_BED_UTILISATION,
-            value: numFormat(ks.util_icu.callout, "compact", 1) + "%",
-            data_as_of: toDate(ks.util_icu.data_as_of, "dd MMM", i18n.language),
-          }
-        : null,
+      // ks.covid
+      //   ? {
+      //       icon: <VirusIcon className="h-6 w-6" />,
+      //       title: "stats.covid",
+      //       url: routes.COVID_19,
+      //       value: numFormat(ks.covid.callout, "standard", 0, "long", i18n.language, true),
+      //       data_as_of: toDate(ks.covid.data_as_of, `dd MMM`, i18n.language),
+      //     }
+      //   : null,
+      // ks.covid_vax
+      //   ? {
+      //       icon: <InjectionIcon className="h-6 w-6" />,
+      //       title: "stats.covid_vax",
+      //       url: routes.COVID_VACCINATION,
+      //       value: numFormat(ks.covid_vax.callout, "standard", 0),
+      //       data_as_of: toDate(ks.covid_vax.data_as_of, `dd MMM`, i18n.language),
+      //     }
+      //   : null,
+      // ks.util_bed
+      //   ? {
+      //       icon: <HospitalBedIcon className="h-6 w-6" />,
+      //       title: "stats.util_bed",
+      //       url: routes.HOSPITAL_BED_UTILISATION,
+      //       value: numFormat(ks.util_bed.callout, "compact", 1) + "%",
+      //       data_as_of: toDate(ks.util_bed.data_as_of, "dd MMM", i18n.language),
+      //     }
+      //   : null,
+      // ks.util_icu
+      //   ? {
+      //       icon: <VentilatorIcon className="h-6 w-6" />,
+      //       title: "stats.util_icu",
+      //       url: routes.HOSPITAL_BED_UTILISATION,
+      //       value: numFormat(ks.util_icu.callout, "compact", 1) + "%",
+      //       data_as_of: toDate(ks.util_icu.data_as_of, "dd MMM", i18n.language),
+      //     }
+      //   : null,
       ks.blood
         ? {
             icon: <BloodDropIcon className="h-6 w-6" />,
