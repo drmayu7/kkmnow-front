@@ -72,6 +72,12 @@ export const getStaticProps: GetStaticProps = withi18n(["kkmnow-home"], async ()
         agency: "phcorp",
         route: routes.PEKA_B40,
       },
+      {
+        id: "dashboard-healthcare-facilities",
+        name: "healthcare-facilities",
+        agency: "pik",
+        route: routes.FACILITIES,
+      },
     ],
   };
 

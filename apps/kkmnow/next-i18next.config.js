@@ -11,6 +11,7 @@ const namespaces = [
   "dashboard-hospital-bed-utilisation",
   "dashboard-organ-donation",
   "dashboard-peka-b40",
+  "dashboard-healthcare-facilities",
 ];
 
 module.exports = defineConfig(namespaces, [

@@ -16,7 +16,7 @@ import {
   // VentilatorIcon,
   MedicalCardIcon,
   // InjectionIcon,
-  // HospitalBedIcon,
+  HospitalBedIcon,
 } from "datagovmy-ui/icons/kkmnow";
 import { DateTime } from "luxon";
 import AgencyIcon from "datagovmy-ui/icons/agency";
@@ -175,6 +175,15 @@ const DashboardIndex: FunctionComponent<DashboardIndexProps> = ({
             url: routes.PEKA_B40,
             value: numFormat(ks.pekab40.callout, "standard", 0),
             data_as_of: toDate(ks.pekab40.data_as_of, "dd MMM", i18n.language),
+          }
+        : null,
+      ks.facilities
+        ? {
+            icon: <HospitalBedIcon className="h-6 w-6" />,
+            title: "stats.facilities",
+            url: routes.FACILITIES,
+            value: numFormat(ks.facilities.callout, "standard", 0),
+            data_as_of: toDate(ks.facilities.data_as_of, "dd MMM", i18n.language),
           }
         : null,
     ];
