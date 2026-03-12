@@ -13,16 +13,10 @@ import { CountryAndStates } from "datagovmy-ui/constants";
 import { numFormat, toDate } from "datagovmy-ui/helpers";
 import { useData, useTranslation } from "datagovmy-ui/hooks";
 import dynamic from "next/dynamic";
-import { FunctionComponent, useEffect, useState } from "react";
+import { FunctionComponent } from "react";
 
 const Choropleth = dynamic(() => import("datagovmy-ui/charts/choropleth"), { ssr: false });
-const MapPlot = dynamic(() => import("datagovmy-ui/charts/map-plot"), { ssr: false });
 const BarMeter = dynamic(() => import("datagovmy-ui/charts/bar-meter"), { ssr: false });
-
-interface MapMarker {
-  position: [number, number];
-  tooltip: Record<string, string>;
-}
 
 interface HealthcareFacilitiesProps {
   last_updated: string;
@@ -46,26 +40,6 @@ interface HealthcareFacilitiesProps {
   };
 }
 
-/** State centroids for map zoom */
-const STATE_CENTROIDS: Record<string, [number, number]> = {
-  jhr: [2.0, 103.5],
-  kdh: [6.1, 100.7],
-  ktn: [5.3, 102.1],
-  mlk: [2.2, 102.3],
-  nsn: [2.7, 102.0],
-  phg: [3.8, 102.4],
-  prk: [4.6, 101.1],
-  pls: [6.5, 100.2],
-  png: [5.4, 100.3],
-  sbh: [5.3, 117.0],
-  swk: [2.5, 111.5],
-  sgr: [3.3, 101.5],
-  trg: [4.9, 103.1],
-  kul: [3.14, 101.69],
-  lbn: [5.28, 115.24],
-  pjy: [2.93, 101.69],
-};
-
 const CHORO_FILTER_KEYS = ["total", "hospital", "clinic", "dental"] as const;
 
 const HealthcareFacilitiesDashboard: FunctionComponent<HealthcareFacilitiesProps> = ({
@@ -78,29 +52,6 @@ const HealthcareFacilitiesDashboard: FunctionComponent<HealthcareFacilitiesProps
 }) => {
   const { t, i18n } = useTranslation(["dashboard-healthcare-facilities", "common"]);
   const { data, setData } = useData({ choro_tab: 0 });
-  const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([]);
-  const [markersLoading, setMarkersLoading] = useState(true);
-
-  useEffect(() => {
-    const stateCode = params.state;
-    const url = `${process.env.NEXT_PUBLIC_S3_URL}/dashboards/healthcare-facilities-${stateCode}.json`;
-
-    fetch(url)
-      .then(res => res.json())
-      .then(json => {
-        setMapMarkers(json.map_markers ?? []);
-      })
-      .catch(() => {
-        setMapMarkers([]);
-      })
-      .finally(() => setMarkersLoading(false));
-  }, [params.state]);
-
-  const isNational = params.state === "mys";
-  const mapPosition: [number, number] = isNational
-    ? [4.5, 109.5]
-    : STATE_CENTROIDS[params.state] ?? [4.5, 109.5];
-  const mapZoom = isNational ? 6 : 8;
 
   const statCards = [
     { key: "overview_total", value: overview.total, color: "bg-primary dark:bg-primary-dark" },
@@ -209,29 +160,7 @@ const HealthcareFacilitiesDashboard: FunctionComponent<HealthcareFacilitiesProps
           />
         </Section>
 
-        {/* Section 3: Facility Map */}
-        <Section
-          title={t("map_header")}
-          description={t("map_desc", {
-            count: markersLoading ? "—" : numFormat(mapMarkers.length, "standard", 0),
-            total: numFormat(overview.total, "standard", 0),
-          })}
-        >
-          {markersLoading ? (
-            <div className="border-outline dark:border-washed-dark flex h-[500px] w-full items-center justify-center rounded-xl border">
-              <p className="text-dim animate-pulse text-sm">{t("common:common.loading")}</p>
-            </div>
-          ) : (
-            <MapPlot
-              className="h-[500px] w-full rounded-xl"
-              position={mapPosition}
-              zoom={mapZoom}
-              markers={mapMarkers}
-            />
-          )}
-        </Section>
-
-        {/* Section 4: Type Breakdown */}
+        {/* Section 3: Type Breakdown */}
         <Section
           title={t("bartype_header")}
           description={t("bartype_desc")}
