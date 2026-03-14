@@ -62,6 +62,9 @@ sitemap.xml
 # bundle-analyzer
 analyze
 
+# wrangling output (for manual S3/CDN upload)
+output/
+
 # app
 dist/
 apps/app/public/translations
