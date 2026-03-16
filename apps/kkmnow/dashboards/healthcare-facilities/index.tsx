@@ -1,5 +1,10 @@
 import { routes } from "@lib/routes";
 import {
+  BuildingOffice2Icon,
+  BuildingOfficeIcon,
+  HomeModernIcon,
+} from "@heroicons/react/20/solid";
+import {
   AgencyBadge,
   Container,
   Hero,
@@ -12,8 +17,9 @@ import {
 import { CountryAndStates } from "datagovmy-ui/constants";
 import { numFormat, toDate } from "datagovmy-ui/helpers";
 import { useData, useTranslation } from "datagovmy-ui/hooks";
+import { ToothIcon } from "datagovmy-ui/icons/kkmnow";
 import dynamic from "next/dynamic";
-import { FunctionComponent } from "react";
+import { FunctionComponent, ReactNode } from "react";
 
 const Choropleth = dynamic(() => import("datagovmy-ui/charts/choropleth"), { ssr: false });
 const BarMeter = dynamic(() => import("datagovmy-ui/charts/bar-meter"), { ssr: false });
@@ -51,14 +57,19 @@ const HealthcareFacilitiesDashboard: FunctionComponent<HealthcareFacilitiesProps
   bar_type,
 }) => {
   const { t, i18n } = useTranslation(["dashboard-healthcare-facilities", "common"]);
-  const { data, setData } = useData({ choro_tab: 0 });
+  const { data, setData } = useData({ choro_tab: 0, showAllTypes: false });
 
-  const statCards = [
+  const statCards: Array<{
+    key: string;
+    value: number;
+    color: string;
+    icon?: ReactNode;
+  }> = [
     { key: "overview_total", value: overview.total, color: "bg-primary dark:bg-primary-dark" },
-    { key: "overview_hospital", value: overview.hospital, color: "bg-green-600" },
-    { key: "overview_clinic", value: overview.clinic, color: "bg-blue-600" },
-    { key: "overview_dental", value: overview.dental, color: "bg-purple-600" },
-    { key: "overview_admin", value: overview.admin + overview.other, color: "bg-slate-500" },
+    { key: "overview_hospital", value: overview.hospital, color: "text-green-600", icon: <BuildingOffice2Icon className="h-5 w-5" /> },
+    { key: "overview_clinic", value: overview.clinic, color: "text-blue-600", icon: <HomeModernIcon className="h-5 w-5" /> },
+    { key: "overview_dental", value: overview.dental, color: "text-purple-600", icon: <ToothIcon className="h-5 w-5" /> },
+    { key: "overview_admin", value: overview.admin + overview.other, color: "text-slate-500", icon: <BuildingOfficeIcon className="h-5 w-5" /> },
   ];
 
   const activeChoroKey = CHORO_FILTER_KEYS[data.choro_tab] ?? "total";
@@ -84,16 +95,29 @@ const HealthcareFacilitiesDashboard: FunctionComponent<HealthcareFacilitiesProps
           title={t("overview_header", { state: CountryAndStates[params.state] })}
         >
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-            {statCards.map(({ key, value, color }) => (
+            {statCards.map(({ key, value, color, icon }) => (
               <div
                 key={key}
-                className="border-outline dark:border-washed-dark flex flex-col gap-2 rounded-xl border p-4"
+                className={`border-outline dark:border-washed-dark flex flex-col gap-2 rounded-xl border p-4 ${
+                  key === "overview_total" ? "bg-slate-50 dark:bg-[#1c2230]" : ""
+                }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
+                  {icon ? (
+                    <span className={color}>{icon}</span>
+                  ) : (
+                    <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
+                  )}
                   <p className="text-dim text-sm font-medium">{t(key)}</p>
                 </div>
-                <p className="text-2xl font-bold">{numFormat(value, "standard", 0)}</p>
+                <p className={key === "overview_total" ? "text-3xl font-bold" : "text-2xl font-bold"}>
+                  {numFormat(value, "standard", 0)}
+                </p>
+                {key !== "overview_total" && (
+                  <p className="text-dim text-xs">
+                    {((value / overview.total) * 100).toFixed(1)}% {t("of_total")}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -168,11 +192,20 @@ const HealthcareFacilitiesDashboard: FunctionComponent<HealthcareFacilitiesProps
         >
           <BarMeter
             className="max-w-2xl"
-            data={bar_type.data}
+            data={data.showAllTypes ? bar_type.data : bar_type.data.slice(0, 10)}
             layout="horizontal"
             sort="desc"
             relative
+            precision={0}
           />
+          {bar_type.data.length > 10 && (
+            <button
+              className="text-primary mt-4 text-sm font-medium hover:underline"
+              onClick={() => setData("showAllTypes", !data.showAllTypes)}
+            >
+              {data.showAllTypes ? t("show_less") : t("show_all", { count: bar_type.data.length })}
+            </button>
+          )}
         </Section>
       </Container>
     </>
