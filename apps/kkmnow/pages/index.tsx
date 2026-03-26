@@ -36,24 +36,24 @@ export const getStaticProps: GetStaticProps = withi18n(["kkmnow-home"], async ()
   const dashboard_route = {
     data_as_of: "2023-11-20 23:59",
     data: [
-      {
-        id: "dashboard-covid-19",
-        name: "covid-19",
-        agency: "moh",
-        route: routes.COVID_19,
-      },
-      {
-        id: "dashboard-covid-vaccination",
-        name: "covid-vaccination",
-        agency: "moh",
-        route: routes.COVID_VACCINATION,
-      },
-      {
-        id: "dashboard-hospital-bed-utilisation",
-        name: "hospital-bed-utilisation",
-        agency: "moh",
-        route: routes.HOSPITAL_BED_UTILISATION,
-      },
+      // {
+      //   id: "dashboard-covid-19",
+      //   name: "covid-19",
+      //   agency: "moh",
+      //   route: routes.COVID_19,
+      // },
+      // {
+      //   id: "dashboard-covid-vaccination",
+      //   name: "covid-vaccination",
+      //   agency: "moh",
+      //   route: routes.COVID_VACCINATION,
+      // },
+      // {
+      //   id: "dashboard-hospital-bed-utilisation",
+      //   name: "hospital-bed-utilisation",
+      //   agency: "moh",
+      //   route: routes.HOSPITAL_BED_UTILISATION,
+      // },
       {
         id: "dashboard-blood-donation",
         name: "blood-donation",
@@ -72,6 +72,12 @@ export const getStaticProps: GetStaticProps = withi18n(["kkmnow-home"], async ()
         agency: "phcorp",
         route: routes.PEKA_B40,
       },
+      {
+        id: "dashboard-healthcare-facilities",
+        name: "healthcare-facilities",
+        agency: "pik",
+        route: routes.FACILITIES,
+      },
     ],
   };
 
@@ -83,11 +89,11 @@ export const getStaticProps: GetStaticProps = withi18n(["kkmnow-home"], async ()
         category: null,
         agency: null,
       },
-      last_updated: data.data_last_updated,
+      last_updated: data.data_last_updated ?? "",
       dashboards: dashboard_route,
-      keystats: data.keystats,
-      timeseries: data.timeseries,
-      timeseries_callout: data.timeseries_callout,
+      keystats: data.keystats ?? { data_as_of: "", data: {} },
+      timeseries: data.timeseries ?? { data_as_of: "", data: {} },
+      timeseries_callout: data.timeseries_callout ?? { data_as_of: "", data: {} },
     },
   };
 });

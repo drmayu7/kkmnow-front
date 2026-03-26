@@ -41,6 +41,7 @@ yarn-error.log*
 # vercel
 .vercel
 .turbo
+.claude
 
 # typescript
 *.tsbuildinfo
@@ -60,6 +61,11 @@ sitemap.xml
 
 # bundle-analyzer
 analyze
+
+# wrangling output (for manual S3/CDN upload)
+.husky
+.playwright-mcp
+output/
 
 # app
 dist/

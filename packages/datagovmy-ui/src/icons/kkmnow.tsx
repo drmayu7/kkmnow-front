@@ -135,6 +135,24 @@ export const VentilatorIcon: FunctionComponent<IconProps> = ({ className }) => {
     </svg>
   );
 };
+export const ToothIcon: FunctionComponent<IconProps> = ({ className }) => {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M7.5 2C5.57 2 4 3.57 4 5.5C4 7.08 4.58 8.41 5.25 9.5C5.92 10.59 6.75 11.47 7.25 12.75C7.75 14.03 8 15.75 8 18C8 19.1 8.9 20 10 20C11.1 20 12 19.1 12 18C12 19.1 12.9 20 14 20C15.1 20 16 19.1 16 18C16 15.75 16.25 14.03 16.75 12.75C17.25 11.47 18.08 10.59 18.75 9.5C19.42 8.41 20 7.08 20 5.5C20 3.57 18.43 2 16.5 2C15.17 2 14.02 2.72 13.38 3.78C12.94 3.3 12.5 3 12 3C11.5 3 11.06 3.3 10.62 3.78C9.98 2.72 8.83 2 7.5 2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+};
 export const VirusIcon: FunctionComponent<IconProps> = ({ className }) => {
   return (
     <svg

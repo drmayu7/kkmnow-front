@@ -12,10 +12,10 @@ import { AKSARA_COLOR } from "datagovmy-ui/constants";
 import {
   BloodDropIcon,
   HeartIcon,
-  VirusIcon,
-  VentilatorIcon,
+  // VirusIcon,
+  // VentilatorIcon,
   MedicalCardIcon,
-  InjectionIcon,
+  // InjectionIcon,
   HospitalBedIcon,
 } from "datagovmy-ui/icons/kkmnow";
 import { DateTime } from "luxon";
@@ -72,93 +72,123 @@ const DashboardIndex: FunctionComponent<DashboardIndexProps> = ({
 }) => {
   const { t, i18n } = useTranslation(["kkmnow-home", "dashboards"]);
 
-  const twoMonths = Math.ceil(
-    Math.abs(
-      DateTime.fromSeconds(timeseries.data.x[timeseries.data.x.length - 1] / 1000)
-        .minus({ months: 2 })
-        .startOf("month")
-        .diff(DateTime.fromSeconds(timeseries.data.x[timeseries.data.x.length - 1] / 1000), [
-          "days",
-        ]).days
-    )
-  );
+  const hasTimeseries = Boolean(timeseries?.data?.x?.length);
+
+  const twoMonths = hasTimeseries
+    ? Math.ceil(
+        Math.abs(
+          DateTime.fromSeconds(timeseries.data.x[timeseries.data.x.length - 1] / 1000)
+            .minus({ months: 2 })
+            .startOf("month")
+            .diff(DateTime.fromSeconds(timeseries.data.x[timeseries.data.x.length - 1] / 1000), [
+              "days",
+            ]).days
+        )
+      )
+    : 0;
 
   const { data, setData } = useData({
-    minmax: [timeseries.data.x.length - twoMonths, timeseries.data.x.length - 1],
+    minmax: hasTimeseries
+      ? [timeseries.data.x.length - twoMonths, timeseries.data.x.length - 1]
+      : [0, 0],
   });
-  const { coordinate } = useSlice(timeseries.data, data.minmax);
+  const { coordinate } = useSlice(hasTimeseries ? timeseries.data : { x: [] }, data.minmax);
 
   const yieldPrefix = (value: number) => (value >= 0 ? "+" : "");
 
   const yieldCallout = (key: "downloads" | "views") => {
+    const callout = timeseries_callout?.data?.[key];
+    if (!callout) return [];
     return [
       {
         title: t("daily"),
-        value:
-          yieldPrefix(timeseries_callout.data[key].callout1) +
-          numFormat(timeseries_callout.data[key].callout1, "standard"),
+        value: yieldPrefix(callout.callout1) + numFormat(callout.callout1, "standard"),
       },
       {
         title: t("total"),
-        value: numFormat(timeseries_callout.data[key].callout2, "standard"),
+        value: numFormat(callout.callout2, "standard"),
       },
     ];
   };
 
-  const STATS = useMemo<StatProps[]>(
-    () => [
-      {
-        icon: <VirusIcon className="h-6 w-6" />,
-        title: "stats.covid",
-        url: routes.COVID_19,
-        value: numFormat(keystats.data.covid.callout, "standard", 0, "long", i18n.language, true),
-        data_as_of: toDate(keystats.data.covid.data_as_of, `dd MMM`, i18n.language),
-      },
-      {
-        icon: <InjectionIcon className="h-6 w-6" />,
-        title: "stats.covid_vax",
-        url: routes.COVID_VACCINATION,
-        value: numFormat(keystats.data.covid_vax.callout, "standard", 0),
-        data_as_of: toDate(keystats.data.covid_vax.data_as_of, `dd MMM`, i18n.language),
-      },
-      {
-        icon: <HospitalBedIcon className="h-6 w-6" />,
-        title: "stats.util_bed",
-        url: routes.HOSPITAL_BED_UTILISATION,
-        value: numFormat(keystats.data.util_bed.callout, "compact", 1) + "%",
-        data_as_of: toDate(keystats.data.util_bed.data_as_of, "dd MMM", i18n.language),
-      },
-      {
-        icon: <VentilatorIcon className="h-6 w-6" />,
-        title: "stats.util_icu",
-        url: routes.HOSPITAL_BED_UTILISATION,
-        value: numFormat(keystats.data.util_icu.callout, "compact", 1) + "%",
-        data_as_of: toDate(keystats.data.util_icu.data_as_of, "dd MMM", i18n.language),
-      },
-      {
-        icon: <BloodDropIcon className="h-6 w-6" />,
-        title: "stats.blood",
-        url: routes.BLOOD_DONATION,
-        value: numFormat(keystats.data.blood.callout, "standard", 0),
-        data_as_of: toDate(keystats.data.blood.data_as_of, "dd MMM", i18n.language),
-      },
-      {
-        icon: <HeartIcon className="h-6 w-6" />,
-        title: "stats.organ",
-        url: routes.ORGAN_DONATION,
-        value: numFormat(keystats.data.organ.callout, "standard", 0),
-        data_as_of: toDate(keystats.data.organ.data_as_of, "dd MMM", i18n.language),
-      },
-      {
-        icon: <MedicalCardIcon className="h-6 w-6" />,
-        title: "stats.pekab40",
-        url: routes.PEKA_B40,
-        value: numFormat(keystats.data.pekab40.callout, "standard", 0),
-        data_as_of: toDate(keystats.data.pekab40.data_as_of, "dd MMM", i18n.language),
-      },
-    ],
-    [i18n.language]
-  );
+  const STATS = useMemo<StatProps[]>(() => {
+    const ks = keystats?.data ?? {};
+    const all: (StatProps | null)[] = [
+      // ks.covid
+      //   ? {
+      //       icon: <VirusIcon className="h-6 w-6" />,
+      //       title: "stats.covid",
+      //       url: routes.COVID_19,
+      //       value: numFormat(ks.covid.callout, "standard", 0, "long", i18n.language, true),
+      //       data_as_of: toDate(ks.covid.data_as_of, `dd MMM`, i18n.language),
+      //     }
+      //   : null,
+      // ks.covid_vax
+      //   ? {
+      //       icon: <InjectionIcon className="h-6 w-6" />,
+      //       title: "stats.covid_vax",
+      //       url: routes.COVID_VACCINATION,
+      //       value: numFormat(ks.covid_vax.callout, "standard", 0),
+      //       data_as_of: toDate(ks.covid_vax.data_as_of, `dd MMM`, i18n.language),
+      //     }
+      //   : null,
+      // ks.util_bed
+      //   ? {
+      //       icon: <HospitalBedIcon className="h-6 w-6" />,
+      //       title: "stats.util_bed",
+      //       url: routes.HOSPITAL_BED_UTILISATION,
+      //       value: numFormat(ks.util_bed.callout, "compact", 1) + "%",
+      //       data_as_of: toDate(ks.util_bed.data_as_of, "dd MMM", i18n.language),
+      //     }
+      //   : null,
+      // ks.util_icu
+      //   ? {
+      //       icon: <VentilatorIcon className="h-6 w-6" />,
+      //       title: "stats.util_icu",
+      //       url: routes.HOSPITAL_BED_UTILISATION,
+      //       value: numFormat(ks.util_icu.callout, "compact", 1) + "%",
+      //       data_as_of: toDate(ks.util_icu.data_as_of, "dd MMM", i18n.language),
+      //     }
+      //   : null,
+      ks.blood
+        ? {
+            icon: <BloodDropIcon className="h-6 w-6" />,
+            title: "stats.blood",
+            url: routes.BLOOD_DONATION,
+            value: numFormat(ks.blood.callout, "standard", 0),
+            data_as_of: toDate(ks.blood.data_as_of, "dd MMM", i18n.language),
+          }
+        : null,
+      ks.organ
+        ? {
+            icon: <HeartIcon className="h-6 w-6" />,
+            title: "stats.organ",
+            url: routes.ORGAN_DONATION,
+            value: numFormat(ks.organ.callout, "standard", 0),
+            data_as_of: toDate(ks.organ.data_as_of, "dd MMM", i18n.language),
+          }
+        : null,
+      ks.pekab40
+        ? {
+            icon: <MedicalCardIcon className="h-6 w-6" />,
+            title: "stats.pekab40",
+            url: routes.PEKA_B40,
+            value: numFormat(ks.pekab40.callout, "standard", 0),
+            data_as_of: toDate(ks.pekab40.data_as_of, "dd MMM", i18n.language),
+          }
+        : null,
+      ks.facilities
+        ? {
+            icon: <HospitalBedIcon className="h-6 w-6" />,
+            title: "stats.facilities",
+            url: routes.FACILITIES,
+            value: numFormat(ks.facilities.callout, "standard", 0),
+            data_as_of: toDate(ks.facilities.data_as_of, "dd MMM", i18n.language),
+          }
+        : null,
+    ];
+    return all.filter((s): s is StatProps => s !== null);
+  }, [i18n.language]);
 
   return (
     <>
@@ -223,55 +253,57 @@ const DashboardIndex: FunctionComponent<DashboardIndexProps> = ({
           </div>
         </Section>
 
-        <Section title={t("usage")} date={timeseries.data_as_of}>
-          <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-            <Timeseries
-              className="h-[300px] w-full"
-              title={t("views")}
-              data={{
-                labels: coordinate.x,
-                datasets: [
-                  {
-                    type: "line",
-                    data: coordinate.views,
-                    borderColor: AKSARA_COLOR.PRIMARY,
-                    label: t("views") as string,
-                    borderWidth: 1.5,
-                    backgroundColor: AKSARA_COLOR.PRIMARY_H,
-                    fill: true,
-                  },
-                ],
-              }}
-              stats={yieldCallout("views")}
-            />
-            <Timeseries
-              className="h-[300px] w-full"
-              title={t("downloads")}
-              data={{
-                labels: coordinate.x,
-                datasets: [
-                  {
-                    type: "line",
-                    data: coordinate.downloads,
-                    borderColor: AKSARA_COLOR.PRIMARY,
-                    label: t("downloads") as string,
-                    backgroundColor: AKSARA_COLOR.PRIMARY_H,
-                    fill: true,
-                    borderWidth: 1.5,
-                  },
-                ],
-              }}
-              stats={yieldCallout("downloads")}
-            />
-          </div>
+        {hasTimeseries && (
+          <Section title={t("usage")} date={timeseries.data_as_of}>
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
+              <Timeseries
+                className="h-[300px] w-full"
+                title={t("views")}
+                data={{
+                  labels: coordinate.x,
+                  datasets: [
+                    {
+                      type: "line",
+                      data: coordinate.views,
+                      borderColor: AKSARA_COLOR.PRIMARY,
+                      label: t("views") as string,
+                      borderWidth: 1.5,
+                      backgroundColor: AKSARA_COLOR.PRIMARY_H,
+                      fill: true,
+                    },
+                  ],
+                }}
+                stats={yieldCallout("views")}
+              />
+              <Timeseries
+                className="h-[300px] w-full"
+                title={t("downloads")}
+                data={{
+                  labels: coordinate.x,
+                  datasets: [
+                    {
+                      type: "line",
+                      data: coordinate.downloads,
+                      borderColor: AKSARA_COLOR.PRIMARY,
+                      label: t("downloads") as string,
+                      backgroundColor: AKSARA_COLOR.PRIMARY_H,
+                      fill: true,
+                      borderWidth: 1.5,
+                    },
+                  ],
+                }}
+                stats={yieldCallout("downloads")}
+              />
+            </div>
 
-          <Slider
-            type="range"
-            value={data.minmax}
-            data={timeseries.data.x}
-            onChange={(e: any) => setData("minmax", e)}
-          />
-        </Section>
+            <Slider
+              type="range"
+              value={data.minmax}
+              data={timeseries.data.x}
+              onChange={(e: any) => setData("minmax", e)}
+            />
+          </Section>
+        )}
       </Container>
     </>
   );

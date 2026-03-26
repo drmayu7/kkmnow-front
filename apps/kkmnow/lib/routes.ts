@@ -6,7 +6,7 @@ export const routes = {
   ORGAN_DONATION: "/dashboard/organ-donation",
   PEKA_B40: "/dashboard/peka-b40",
   FACILITIES: "/dashboard/healthcare-facilities",
-  HOSPITAL_BED_UTILISATION: "/dashboard/hospital-bed-utilisation",
+  // HOSPITAL_BED_UTILISATION: "/dashboard/hospital-bed-utilisation",
   COVIDNOW_DATA: "/dashboard/covidnow-data",
 };
 

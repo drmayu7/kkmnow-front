@@ -38,11 +38,11 @@ export const getStaticProps: GetStaticProps = withi18n("dashboards", async () =>
         agency: "moh",
         route: routes.COVID_VACCINATION,
       },
-      {
-        name: "hospital-bed-utilisation",
-        agency: "moh",
-        route: routes.HOSPITAL_BED_UTILISATION,
-      },
+      // {
+      //   name: "hospital-bed-utilisation",
+      //   agency: "moh",
+      //   route: routes.HOSPITAL_BED_UTILISATION,
+      // },
       {
         name: "organ-donation",
         agency: "ntrc",
