@@ -63,6 +63,8 @@ sitemap.xml
 analyze
 
 # wrangling output (for manual S3/CDN upload)
+.husky
+.playwright-mcp
 output/
 
 # app
