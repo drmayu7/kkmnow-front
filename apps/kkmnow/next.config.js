@@ -7,6 +7,7 @@ const pwa = require("next-pwa")({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   i18n,
   reactStrictMode: false, // Bug requires strict-mode false: https://github.com/plouc/nivo/issues/2009
   poweredByHeader: false,

@@ -1,0 +1,140 @@
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  AWS_DEFAULT_REGION: ap-southeast-5
+  ECR_REGISTRY: 624693141495.dkr.ecr.ap-southeast-5.amazonaws.com
+  ECR_REPOSITORY: kkmnow-frontend
+  ECS_CLUSTER: kkmnow-staging
+  ECS_SERVICE: kkmnow-frontend-staging
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+stages:
+  - lint
+  - build
+  - push
+  - deploy
+  - verify
+
+# ── Lint ────────────────────────────────────────────────────────────────────────
+lint:
+  stage: lint
+  image: node:22-alpine
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - yarn install --frozen-lockfile
+  script:
+    - npx turbo run lint --filter=kkmnow
+
+# ── Docker Build ────────────────────────────────────────────────────────────────
+build:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+  script:
+    - >
+      docker build
+      -f apps/kkmnow/Dockerfile
+      --build-arg NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+      --build-arg NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+      --build-arg NEXT_PUBLIC_S3_URL=$NEXT_PUBLIC_S3_URL
+      --build-arg NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
+      --build-arg NEXT_PUBLIC_API_KEY=$NEXT_PUBLIC_API_KEY
+      --build-arg NEXT_PUBLIC_AUTHORIZATION_TOKEN=$NEXT_PUBLIC_AUTHORIZATION_TOKEN
+      --build-arg NEXT_PUBLIC_GA_TAG=$NEXT_PUBLIC_GA_TAG
+      --build-arg NEXT_PUBLIC_MIXPANEL_TOKEN=$NEXT_PUBLIC_MIXPANEL_TOKEN
+      --build-arg NEXT_PUBLIC_TINYBIRD_TOKEN=$NEXT_PUBLIC_TINYBIRD_TOKEN
+      --build-arg NEXT_PUBLIC_TINYBIRD_URL=$NEXT_PUBLIC_TINYBIRD_URL
+      --build-arg NEXT_PUBLIC_TILESERVER_URL=$NEXT_PUBLIC_TILESERVER_URL
+      -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      -t $ECR_REGISTRY/$ECR_REPOSITORY:latest
+      .
+    - mkdir -p /tmp/docker-images
+    - docker save $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG > /tmp/docker-images/frontend.tar
+  artifacts:
+    paths:
+      - /tmp/docker-images/frontend.tar
+    expire_in: 1 hour
+
+# ── Push to ECR ─────────────────────────────────────────────────────────────────
+push:
+  stage: push
+  image:
+    name: amazon/aws-cli:latest
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+  services:
+    - docker:27-dind
+  before_script:
+    - amazon-linux-extras install docker || true
+    - yum install -y docker || true
+  script:
+    - docker load < /tmp/docker-images/frontend.tar
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+    - docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+    - docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+  dependencies:
+    - build
+
+# ── Deploy to ECS ───────────────────────────────────────────────────────────────
+deploy_staging:
+  stage: deploy
+  image:
+    name: amazon/aws-cli:latest
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+  script:
+    - aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --force-new-deployment --region $AWS_DEFAULT_REGION
+    - aws ecs wait services-stable --cluster $ECS_CLUSTER --services $ECS_SERVICE --region $AWS_DEFAULT_REGION
+  dependencies: []
+
+deploy_production:
+  stage: deploy
+  image:
+    name: amazon/aws-cli:latest
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  script:
+    - aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --force-new-deployment --region $AWS_DEFAULT_REGION
+    - aws ecs wait services-stable --cluster $ECS_CLUSTER --services $ECS_SERVICE --region $AWS_DEFAULT_REGION
+  dependencies: []
+
+# ── Verify + CloudFront Invalidation ────────────────────────────────────────────
+verify:
+  stage: verify
+  image:
+    name: amazon/aws-cli:latest
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+  script:
+    - |
+      if [ -n "$CF_DISTRIBUTION_ID" ]; then
+        aws cloudfront create-invalidation --distribution-id $CF_DISTRIBUTION_ID --paths "/*" --region us-east-1
+        echo "CloudFront invalidation created for distribution $CF_DISTRIBUTION_ID"
+      else
+        echo "CF_DISTRIBUTION_ID not set, skipping CloudFront invalidation"
+      fi
+    - |
+      if [ -n "$HEALTH_CHECK_URL" ]; then
+        for i in $(seq 1 12); do
+          if curl -sf "$HEALTH_CHECK_URL/api/health" > /dev/null 2>&1; then
+            echo "Health check passed!"
+            exit 0
+          fi
+          echo "Waiting for service to be healthy... (attempt $i/12)"
+          sleep 10
+        done
+        echo "Health check failed after 2 minutes"
+        exit 1
+      else
+        echo "HEALTH_CHECK_URL not set, skipping smoke test"
+      fi
+  dependencies: []
