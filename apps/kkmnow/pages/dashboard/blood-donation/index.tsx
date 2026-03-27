@@ -69,11 +69,23 @@ export const getStaticProps: GetStaticProps = withi18n(
   async () => {
     const { data } = await get("/dashboards/blood-donation-mys.json", {}, "api_s3");
 
-    // transform:
-    data.bar_chart_time.data.monthly.x = data.bar_chart_time.data.monthly.x.map((item: any) => {
-      const period = DateTime.fromFormat(item, "yyyy-MM-dd");
-      return period.monthShort !== "Jan" ? period.monthShort : period.year.toString();
+    const EMPTY_XY = { x: [], y: [] };
+
+    const withVariableDefaults = (period: any) => ({
+      blood_group: period?.blood_group ?? [],
+      donation_type: period?.donation_type ?? [],
+      location: period?.location ?? [],
+      donation_regularity: period?.donation_regularity ?? [],
+      social_group: period?.social_group ?? [],
     });
+
+    // transform: guard against missing monthly data
+    if (data.bar_chart_time?.data?.monthly?.x) {
+      data.bar_chart_time.data.monthly.x = data.bar_chart_time.data.monthly.x.map((item: any) => {
+        const period = DateTime.fromFormat(item, "yyyy-MM-dd");
+        return period.monthShort !== "Jan" ? period.monthShort : period.year.toString();
+      });
+    }
 
     return {
       notFound: false,
@@ -88,9 +100,22 @@ export const getStaticProps: GetStaticProps = withi18n(
         next_update: data.data_next_update,
         params: { state: "mys" },
         timeseries: data.timeseries_all,
-        barchart_age: data.bar_chart_age,
+        barchart_age: {
+          data_as_of: data.bar_chart_age?.data_as_of ?? "",
+          data: {
+            past_month: data.bar_chart_age?.data?.past_month ?? EMPTY_XY,
+            past_year: data.bar_chart_age?.data?.past_year ?? EMPTY_XY,
+          },
+        },
         barchart_time: data.bar_chart_time,
-        barchart_variables: data.barchart_key_variables,
+        barchart_variables: {
+          data_as_of: data.barchart_key_variables?.data_as_of ?? "",
+          data: {
+            yesterday: withVariableDefaults(data.barchart_key_variables?.data?.yesterday),
+            past_month: withVariableDefaults(data.barchart_key_variables?.data?.past_month),
+            past_year: withVariableDefaults(data.barchart_key_variables?.data?.past_year),
+          },
+        },
         choropleth: data.choropleth_malaysia,
       },
       revalidate: 60 * 60 * 24, // 1 day (in seconds)
