@@ -257,54 +257,64 @@ const BloodDonationDashboard: FunctionComponent<BloodDonationDashboardProps> = (
               return (
                 <Panel key={name} name={name}>
                   <div className="grid w-full grid-cols-1 gap-12 lg:grid-cols-3">
-                    <div className="lg:self-stretch">
-                      <BarMeter
-                        title={t("barmeter1_title")}
-                        className="col-span-2"
-                        data={data.blood_group}
-                        layout="horizontal"
-                        unit="%"
-                        sort="desc"
-                        formatX={key => t(key)}
-                      />
-                    </div>
+                    {data.blood_group.length > 0 && (
+                      <div className="lg:self-stretch">
+                        <BarMeter
+                          title={t("barmeter1_title")}
+                          className="col-span-2"
+                          data={data.blood_group}
+                          layout="horizontal"
+                          unit="%"
+                          sort="desc"
+                          formatX={key => t(key)}
+                        />
+                      </div>
+                    )}
                     <div className="grid gap-12 lg:col-span-2 lg:grid-cols-2">
-                      <BarMeter
-                        title={t("barmeter2_title")}
-                        className="flex-col"
-                        data={data.donation_type}
-                        layout="horizontal"
-                        unit="%"
-                        sort="desc"
-                        formatX={key => t(key)}
-                      />
-                      <BarMeter
-                        title={t("barmeter3_title")}
-                        className="flex-col"
-                        data={data.location}
-                        layout="horizontal"
-                        unit="%"
-                        sort="desc"
-                        formatX={key => t(key)}
-                      />
-                      <BarMeter
-                        title={t("barmeter4_title")}
-                        className="flex-col"
-                        data={data.donation_regularity}
-                        layout="horizontal"
-                        unit="%"
-                        sort="desc"
-                        formatX={key => t(key)}
-                      />
-                      <BarMeter
-                        title={t("barmeter5_title")}
-                        className="flex-col"
-                        data={data.social_group}
-                        layout="horizontal"
-                        unit="%"
-                        sort="desc"
-                        formatX={key => t(key)}
-                      />
+                      {data.donation_type.length > 0 && (
+                        <BarMeter
+                          title={t("barmeter2_title")}
+                          className="flex-col"
+                          data={data.donation_type}
+                          layout="horizontal"
+                          unit="%"
+                          sort="desc"
+                          formatX={key => t(key)}
+                        />
+                      )}
+                      {data.location.length > 0 && (
+                        <BarMeter
+                          title={t("barmeter3_title")}
+                          className="flex-col"
+                          data={data.location}
+                          layout="horizontal"
+                          unit="%"
+                          sort="desc"
+                          formatX={key => t(key)}
+                        />
+                      )}
+                      {data.donation_regularity.length > 0 && (
+                        <BarMeter
+                          title={t("barmeter4_title")}
+                          className="flex-col"
+                          data={data.donation_regularity}
+                          layout="horizontal"
+                          unit="%"
+                          sort="desc"
+                          formatX={key => t(key)}
+                        />
+                      )}
+                      {data.social_group.length > 0 && (
+                        <BarMeter
+                          title={t("barmeter5_title")}
+                          className="flex-col"
+                          data={data.social_group}
+                          layout="horizontal"
+                          unit="%"
+                          sort="desc"
+                          formatX={key => t(key)}
+                        />
+                      )}
                     </div>
                   </div>
                 </Panel>
@@ -322,94 +332,98 @@ const BloodDonationDashboard: FunctionComponent<BloodDonationDashboardProps> = (
           date={barchart_time.data_as_of}
         >
           <div className="grid w-full grid-cols-1 gap-12 xl:grid-cols-2">
-            <div>
-              <Tabs title={t("bar1_title")}>
-                <Panel name={t("annual")}>
-                  <Bar
-                    id="bar-newdonor-total-annual"
-                    className="h-[250px]"
-                    data={{
-                      labels: barchart_time.data.annual.x,
-                      datasets: [
-                        {
-                          label: `${t("bar1_tooltip1")}`,
-                          data: barchart_time.data.annual.y,
-                          borderRadius: 12,
-                          barThickness: 12,
-                          backgroundColor:
-                            resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
-                        },
-                      ],
-                    }}
-                    enableGridX={false}
-                  />
-                </Panel>
-                <Panel name={t("common:time.monthly")}>
-                  <Bar
-                    id="bar-newdonor-total-monthly"
-                    className="h-[250px]"
-                    data={{
-                      labels: barchart_time.data.monthly.x,
-                      datasets: [
-                        {
-                          label: `${t("bar1_tooltip1")}`,
-                          data: barchart_time.data.monthly.y,
-                          borderRadius: 12,
-                          barThickness: 12,
-                          backgroundColor:
-                            resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
-                        },
-                      ],
-                    }}
-                    enableGridX={false}
-                  />
-                </Panel>
-              </Tabs>
-            </div>
-            <div>
-              <Tabs title={t("bar2_title")}>
-                <Panel name={t("year")}>
-                  <Bar
-                    id="bar-newdonor-age-annual"
-                    className="h-[250px]"
-                    data={{
-                      labels: barchart_age.data.past_year.x,
-                      datasets: [
-                        {
-                          label: t("bar2_tooltip1"),
-                          data: barchart_age.data.past_year.y,
-                          borderRadius: 12,
-                          barThickness: 12,
-                          backgroundColor:
-                            resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
-                        },
-                      ],
-                    }}
-                    enableGridX={false}
-                  />
-                </Panel>
-                <Panel name={t("month")}>
-                  <Bar
-                    id="bar-newdonor-age-monthly"
-                    className="h-[250px]"
-                    data={{
-                      labels: barchart_age.data.past_month.x,
-                      datasets: [
-                        {
-                          label: t("bar2_tooltip1"),
-                          data: barchart_age.data.past_month.y,
-                          borderRadius: 12,
-                          barThickness: 12,
-                          backgroundColor:
-                            resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
-                        },
-                      ],
-                    }}
-                    enableGridX={false}
-                  />
-                </Panel>
-              </Tabs>
-            </div>
+            {barchart_time.data.annual?.x?.length > 0 && (
+              <div>
+                <Tabs title={t("bar1_title")}>
+                  <Panel name={t("annual")}>
+                    <Bar
+                      id="bar-newdonor-total-annual"
+                      className="h-[250px]"
+                      data={{
+                        labels: barchart_time.data.annual.x,
+                        datasets: [
+                          {
+                            label: `${t("bar1_tooltip1")}`,
+                            data: barchart_time.data.annual.y,
+                            borderRadius: 12,
+                            barThickness: 12,
+                            backgroundColor:
+                              resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
+                          },
+                        ],
+                      }}
+                      enableGridX={false}
+                    />
+                  </Panel>
+                  <Panel name={t("common:time.monthly")}>
+                    <Bar
+                      id="bar-newdonor-total-monthly"
+                      className="h-[250px]"
+                      data={{
+                        labels: barchart_time.data.monthly.x,
+                        datasets: [
+                          {
+                            label: `${t("bar1_tooltip1")}`,
+                            data: barchart_time.data.monthly.y,
+                            borderRadius: 12,
+                            barThickness: 12,
+                            backgroundColor:
+                              resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
+                          },
+                        ],
+                      }}
+                      enableGridX={false}
+                    />
+                  </Panel>
+                </Tabs>
+              </div>
+            )}
+            {barchart_age.data.past_year?.x?.length > 0 && (
+              <div>
+                <Tabs title={t("bar2_title")}>
+                  <Panel name={t("year")}>
+                    <Bar
+                      id="bar-newdonor-age-annual"
+                      className="h-[250px]"
+                      data={{
+                        labels: barchart_age.data.past_year.x,
+                        datasets: [
+                          {
+                            label: t("bar2_tooltip1"),
+                            data: barchart_age.data.past_year.y,
+                            borderRadius: 12,
+                            barThickness: 12,
+                            backgroundColor:
+                              resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
+                          },
+                        ],
+                      }}
+                      enableGridX={false}
+                    />
+                  </Panel>
+                  <Panel name={t("month")}>
+                    <Bar
+                      id="bar-newdonor-age-monthly"
+                      className="h-[250px]"
+                      data={{
+                        labels: barchart_age.data.past_month.x,
+                        datasets: [
+                          {
+                            label: t("bar2_tooltip1"),
+                            data: barchart_age.data.past_month.y,
+                            borderRadius: 12,
+                            barThickness: 12,
+                            backgroundColor:
+                              resolvedTheme === "light" ? AKSARA_COLOR.BLACK : AKSARA_COLOR.WHITE,
+                          },
+                        ],
+                      }}
+                      enableGridX={false}
+                    />
+                  </Panel>
+                </Tabs>
+              </div>
+            )}
           </div>
         </Section>
       </Container>
