@@ -37,6 +37,7 @@ build:
   script:
     - >
       docker build
+      --platform linux/amd64
       -f apps/kkmnow/Dockerfile
       --build-arg NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
       --build-arg NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
@@ -49,6 +50,7 @@ build:
       --build-arg NEXT_PUBLIC_TINYBIRD_TOKEN=$NEXT_PUBLIC_TINYBIRD_TOKEN
       --build-arg NEXT_PUBLIC_TINYBIRD_URL=$NEXT_PUBLIC_TINYBIRD_URL
       --build-arg NEXT_PUBLIC_TILESERVER_URL=$NEXT_PUBLIC_TILESERVER_URL
+      --build-arg NEXT_PUBLIC_I18N_URL=$NEXT_PUBLIC_I18N_URL
       -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
       -t $ECR_REGISTRY/$ECR_REPOSITORY:latest
       .

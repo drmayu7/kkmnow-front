@@ -188,6 +188,193 @@ npx cdk diff     # Show pending changes
 
 Shared resources (VPC, ECS cluster, ALB, secrets) are imported from existing backend stacks.
 
+## First-Time Deployment Setup
+
+This guide walks through deploying the frontend from scratch to a new AWS environment.
+
+### Prerequisites
+
+- AWS CLI v2 configured with appropriate profile
+- AWS CDK CLI (`npm install -g aws-cdk`)
+- Docker Desktop (or Docker Engine with BuildKit)
+- Node.js >= 22.0.0
+
+### Step 1: Bootstrap CDK (if not already done)
+
+```bash
+cd infra/frontend
+npx cdk bootstrap aws://ACCOUNT_ID/ap-southeast-5 --profile YOUR_PROFILE
+```
+
+### Step 2: Prepare Secrets Manager
+
+The ECS task definition expects these keys in your Secrets Manager secret. Create or update the secret before deploying:
+
+```bash
+aws secretsmanager create-secret \
+  --name "kkmnow/staging/app-config" \
+  --secret-string '{
+    "REVALIDATE_TOKEN": "your-revalidate-token",
+    "AUTH_TOKEN_SECRET": "your-basic-auth-password",
+    "ROLLING_TOKEN": "your-rolling-token"
+  }' \
+  --profile YOUR_PROFILE --region ap-southeast-5
+```
+
+> **Important:** All three keys (`REVALIDATE_TOKEN`, `AUTH_TOKEN_SECRET`, `ROLLING_TOKEN`) **must exist** in the secret JSON. Missing keys will prevent ECS containers from launching entirely.
+
+### Step 3: Deploy CDK Infrastructure (without ECS service)
+
+On first deploy, the ECR repository has no images. The ECS service will fail if it tries to pull a non-existent image. To handle this:
+
+1. **Deploy the stack** — with circuit breaker disabled temporarily in `frontend-stack.ts`:
+   ```typescript
+   circuitBreaker: { enable: false },
+   ```
+
+2. **Run CDK deploy:**
+   ```bash
+   cd infra/frontend
+   npm install
+   npx cdk deploy --profile YOUR_PROFILE --require-approval never
+   ```
+
+3. The stack will create all resources. The ECS service will cycle tasks (they'll crash since there's no valid image yet), but without circuit breaker, CloudFormation won't roll back.
+
+### Step 4: Build and Push Docker Image
+
+```bash
+cd /path/to/kkmnow-front
+
+# Source environment variables (resolves $VAR references in .env)
+set -a && source apps/kkmnow/.env && set +a
+
+# Build for AMD64 (ECS Fargate architecture — critical on Apple Silicon Macs)
+docker build \
+  --platform linux/amd64 \
+  -f apps/kkmnow/Dockerfile \
+  --build-arg NEXT_PUBLIC_APP_URL="$NEXT_PUBLIC_APP_URL" \
+  --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
+  --build-arg NEXT_PUBLIC_S3_URL="$NEXT_PUBLIC_S3_URL" \
+  --build-arg NEXT_PUBLIC_APP_ENV=staging \
+  --build-arg NEXT_PUBLIC_API_KEY="$NEXT_PUBLIC_API_KEY" \
+  --build-arg NEXT_PUBLIC_AUTHORIZATION_TOKEN="$NEXT_PUBLIC_AUTHORIZATION_TOKEN" \
+  --build-arg NEXT_PUBLIC_GA_TAG="$NEXT_PUBLIC_GA_TAG" \
+  --build-arg NEXT_PUBLIC_MIXPANEL_TOKEN="$NEXT_PUBLIC_MIXPANEL_TOKEN" \
+  --build-arg NEXT_PUBLIC_TINYBIRD_TOKEN="$NEXT_PUBLIC_TINYBIRD_TOKEN" \
+  --build-arg NEXT_PUBLIC_TINYBIRD_URL="$NEXT_PUBLIC_TINYBIRD_URL" \
+  --build-arg NEXT_PUBLIC_TILESERVER_URL="$NEXT_PUBLIC_TILESERVER_URL" \
+  --build-arg NEXT_PUBLIC_I18N_URL="$NEXT_PUBLIC_I18N_URL" \
+  -t ACCOUNT_ID.dkr.ecr.ap-southeast-5.amazonaws.com/kkmnow-frontend:latest \
+  .
+
+# Authenticate and push to ECR
+aws ecr get-login-password --profile YOUR_PROFILE --region ap-southeast-5 \
+  | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.ap-southeast-5.amazonaws.com
+
+docker push ACCOUNT_ID.dkr.ecr.ap-southeast-5.amazonaws.com/kkmnow-frontend:latest
+```
+
+> **Warning:** Always use `--platform linux/amd64` when building on Apple Silicon (M1/M2/M3). Without it, Docker builds an ARM64 image that causes `exec format error` on ECS Fargate (x86_64).
+
+> **Warning:** Use `set -a && source apps/kkmnow/.env && set +a` (not just `export $(grep NEXT_PUBLIC_ .env)`). The `.env` file uses variable references like `NEXT_PUBLIC_API_KEY=$API_KEY` that need the full file sourced to resolve.
+
+### Step 5: Force ECS Deployment
+
+```bash
+aws ecs update-service \
+  --cluster kkmnow-staging \
+  --service kkmnow-frontend-staging \
+  --force-new-deployment \
+  --profile YOUR_PROFILE --region ap-southeast-5
+```
+
+Wait for tasks to become healthy:
+
+```bash
+aws ecs wait services-stable \
+  --cluster kkmnow-staging \
+  --services kkmnow-frontend-staging \
+  --profile YOUR_PROFILE --region ap-southeast-5
+```
+
+### Step 6: Re-enable Circuit Breaker
+
+Once tasks are running healthy, update `frontend-stack.ts` to re-enable the circuit breaker:
+
+```typescript
+circuitBreaker: { enable: true, rollback: true },
+```
+
+Then redeploy:
+
+```bash
+cd infra/frontend
+npx cdk deploy --profile YOUR_PROFILE --require-approval never
+```
+
+### Step 7: Verify Deployment
+
+```bash
+# Health check (should return 200 with JSON)
+curl -s https://YOUR_CLOUDFRONT_DOMAIN/api/health
+
+# Homepage (staging returns 401 Basic Auth — expected)
+curl -sI https://YOUR_CLOUDFRONT_DOMAIN/
+
+# Static assets (should have long cache headers)
+curl -sI https://YOUR_CLOUDFRONT_DOMAIN/_next/static/chunks/main-*.js | grep cache-control
+```
+
+### Step 8: Configure GitLab CI/CD
+
+Add the following variables in GitLab project settings (Settings > CI/CD > Variables):
+
+| Variable | Value | Protected | Masked |
+|---|---|---|---|
+| `NEXT_PUBLIC_APP_URL` | `https://your-domain.com` | No | No |
+| `NEXT_PUBLIC_API_URL` | Backend API endpoint | No | No |
+| `NEXT_PUBLIC_S3_URL` | CloudFront URL for datasets | No | No |
+| `NEXT_PUBLIC_APP_ENV` | `staging` or `production` | No | No |
+| `NEXT_PUBLIC_API_KEY` | API key | Yes | Yes |
+| `NEXT_PUBLIC_AUTHORIZATION_TOKEN` | Auth token | Yes | Yes |
+| `NEXT_PUBLIC_I18N_URL` | CloudFront URL for i18n | No | No |
+| `NEXT_PUBLIC_GA_TAG` | Google Analytics tag | No | No |
+| `NEXT_PUBLIC_MIXPANEL_TOKEN` | Mixpanel token | No | No |
+| `CF_DISTRIBUTION_ID` | CloudFront distribution ID | No | No |
+| `HEALTH_CHECK_URL` | `https://your-cloudfront-domain` | No | No |
+
+> **AWS credentials are NOT needed** — the GitLab runner uses an EC2 instance profile with IAM role `gitlab-runner-autoscaled-RunnerWorkerRole-AYQcrmOCa7bc`.
+
+### Step 9: Add CloudFront Invalidation Permission
+
+Add an inline policy to the GitLab runner IAM role:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "FrontendCloudFrontInvalidation",
+      "Effect": "Allow",
+      "Action": "cloudfront:CreateInvalidation",
+      "Resource": "arn:aws:cloudfront::ACCOUNT_ID:distribution/YOUR_DISTRIBUTION_ID"
+    }
+  ]
+}
+```
+
+### Common Issues
+
+| Issue | Cause | Fix |
+|---|---|---|
+| `exec format error` | ARM64 image on x86_64 Fargate | Add `--platform linux/amd64` to docker build |
+| Container exit code 255, no logs | Missing Secrets Manager keys | Ensure all keys (`REVALIDATE_TOKEN`, `AUTH_TOKEN_SECRET`, `ROLLING_TOKEN`) exist |
+| ECS circuit breaker rollback on first deploy | No image in ECR | Disable circuit breaker, deploy stack, push image, re-enable |
+| 403 during Docker build (static generation) | Env vars not resolved | Source full `.env` with `set -a && source .env && set +a` |
+| 401 Basic Auth on staging | Expected behavior | Middleware enforces Basic Auth when `NEXT_PUBLIC_APP_ENV=staging` |
+| Health check works but pages don't | Health check bypasses middleware | `/api/*` routes aren't matched by middleware |
+
 ## CI/CD Pipeline
 
 The GitLab CI pipeline (`.gitlab-ci.yml`) automates the full deployment lifecycle. The GitLab runner uses an EC2 instance profile with IAM role — **no AWS credentials are stored in CI/CD variables**.
