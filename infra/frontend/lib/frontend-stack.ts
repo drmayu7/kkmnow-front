@@ -114,10 +114,11 @@ export class FrontendStack extends cdk.Stack {
     appConfigSecret.grantRead(taskRole);
 
     // ─── ECS Task Definition ─────────────────────────────────────────────
+    // 1 vCPU + 2 GB — doubles per-task capacity for Node.js single-threaded workload
     const taskDef = new ecs.FargateTaskDefinition(this, "FrontendTask", {
       family: "kkmnow-frontend-staging",
-      cpu: 512,
-      memoryLimitMiB: 1024,
+      cpu: 1024,
+      memoryLimitMiB: 2048,
       executionRole,
       taskRole,
     });
@@ -172,16 +173,16 @@ export class FrontendStack extends cdk.Stack {
     });
 
     scaling.scaleOnCpuUtilization("CpuScaling", {
-      targetUtilizationPercent: 60,
+      targetUtilizationPercent: 50,       // Trigger earlier (was 60%)
       scaleInCooldown: cdk.Duration.seconds(300),
-      scaleOutCooldown: cdk.Duration.seconds(120),
+      scaleOutCooldown: cdk.Duration.seconds(60),  // React faster (was 120s)
     });
 
     scaling.scaleOnRequestCount("RequestScaling", {
       targetGroup,
-      requestsPerTarget: 500,
+      requestsPerTarget: 300,             // Scale sooner under load (was 500)
       scaleInCooldown: cdk.Duration.seconds(300),
-      scaleOutCooldown: cdk.Duration.seconds(120),
+      scaleOutCooldown: cdk.Duration.seconds(60),  // React faster (was 120s)
     });
 
     // ─── CloudFront Distribution ─────────────────────────────────────────
@@ -238,14 +239,14 @@ export class FrontendStack extends cdk.Stack {
           }),
           compress: true,
         },
-        // Data catalogue — SSR, forward query strings + Accept-Language
+        // Data catalogue — SSR, short default TTL to reduce origin load during spikes
         "/data-catalogue*": {
           origin: albOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: new cloudfront.CachePolicy(this, "SsrCachePolicy", {
             cachePolicyName: "kkmnow-frontend-ssr",
-            comment: "SSR pages - respect origin s-maxage, cache by Accept-Language + query",
-            defaultTtl: cdk.Duration.seconds(0),
+            comment: "SSR pages - 60s default TTL to absorb traffic spikes, origin can override",
+            defaultTtl: cdk.Duration.seconds(60),   // Cache SSR for 60s by default (was 0)
             minTtl: cdk.Duration.seconds(0),
             maxTtl: cdk.Duration.hours(6),
             headerBehavior: cloudfront.CacheHeaderBehavior.allowList("Accept-Language"),
