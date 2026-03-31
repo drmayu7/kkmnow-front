@@ -1,5 +1,5 @@
 import { ArrowPathIcon } from "@heroicons/react/20/solid";
-import { routes } from "@lib/routes";
+
 import {
   AgencyBadge,
   Button,
@@ -124,7 +124,7 @@ const HospitalBedUtilisation: FunctionComponent<HospitalBedUtilisationProps> = (
     }
     setData("loading", true);
     setData("hospital", hospital);
-    const route = `${routes.HOSPITAL_BED_UTILISATION}/${hospital}`;
+    const route = `/dashboard/hospital-bed-utilisation/${hospital}`;
 
     push(route, undefined, {
       scroll: false,

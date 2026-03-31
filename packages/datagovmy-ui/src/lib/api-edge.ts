@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@vercel/edge-config";
 
 export const config = {
   runtime: "edge",
 };
 
+/**
+ * Returns the rolling token from the environment variable.
+ * Previously used Vercel Edge Config — replaced for AWS deployment.
+ * The token is injected via ECS task definition (from SSM Parameter Store).
+ */
 export const getRollingToken = async () => {
-  const edge = createClient(process.env.NEXT_PUBLIC_EDGE_CONFIG);
-  const rollingToken = await edge.get<string>("ROLLING_TOKEN");
+  const rollingToken = process.env.ROLLING_TOKEN;
 
-  if (!Boolean(rollingToken)) {
+  if (!rollingToken) {
     return false;
   }
   return NextResponse.json({

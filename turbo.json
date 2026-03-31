@@ -18,7 +18,9 @@
         "NEXT_PUBLIC_S3_URL",
         "NEXT_PUBLIC_TILESERVER_URL",
         "NEXT_PUBLIC_TINYBIRD_TOKEN",
-        "NEXT_PUBLIC_TINYBIRD_URL"
+        "NEXT_PUBLIC_TINYBIRD_URL",
+        "NEXT_PUBLIC_MIXPANEL_TOKEN",
+        "NEXT_PUBLIC_I18N_URL"
       ],
       "outputMode": "new-only",
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]

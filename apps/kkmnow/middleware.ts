@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { get } from "@vercel/edge-config";
 
 // Triggers on relevant pages. Authentication to be removed at launch
 export const config = {
@@ -14,14 +13,9 @@ export async function middleware(request: NextRequest) {
   const purpose = headers.get("purpose");
   if (purpose && purpose.match(/prefetch/i)) headers.delete("x-middleware-prefetch"); // empty json bugfix (in the browser headers still show, but here it is gone)
 
-  // get() calls createClient() synchronously on first use and throws (not rejects) when EDGE_CONFIG
-  // is unset — a synchronous throw cannot be caught by .catch(), only by try/catch.
-  let token: string | undefined;
-  try {
-    token = await get<string>("ROLLING_TOKEN");
-  } catch {
-    token = undefined;
-  }
+  // ROLLING_TOKEN is injected via ECS task definition env var (from SSM Parameter Store).
+  // Previously read from Vercel Edge Config — replaced for AWS deployment.
+  const token: string | undefined = process.env.ROLLING_TOKEN;
 
   // Development / Production
   if (["development", "production"].includes(process.env.NEXT_PUBLIC_APP_ENV)) {

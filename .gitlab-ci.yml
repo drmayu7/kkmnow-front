@@ -1,0 +1,421 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# KKMNow Frontend — GitLab CI/CD Pipeline
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Branch strategy:
+#   - MR to any branch   → quality gate (lint + typecheck)
+#   - Push to staging    → build_staging → deploy_staging → verify_staging
+#   - Push to main       → build_production → deploy_production (manual) → verify_production
+#
+# Environment separation:
+#   Each environment has its own Docker build because NEXT_PUBLIC_* variables
+#   are baked into the Next.js JS bundle at build time. Staging and production
+#   must be built separately with their respective env-scoped GitLab variables.
+#
+#   Image tag convention:
+#     :$CI_COMMIT_SHORT_SHA  — immutable, used for rollback
+#     :staging               — mutable, staging's "latest"
+#     :main                  — mutable, production's "latest"
+#
+# Required GitLab CI/CD variables (Settings > CI/CD > Variables):
+#
+#   GLOBAL (no environment scope):
+#     AWS_DEFAULT_REGION          — ap-southeast-5
+#     ECR_REGISTRY                — 624693141495.dkr.ecr.ap-southeast-5.amazonaws.com
+#
+#   ENVIRONMENT-SCOPED (set separately for "staging" and "production"):
+#     NEXT_PUBLIC_APP_URL         — Frontend public URL (CloudFront domain or custom domain)
+#     NEXT_PUBLIC_API_URL         — Backend API endpoint
+#     NEXT_PUBLIC_S3_URL          — CloudFront URL for kkmnow-dataset S3 bucket
+#     NEXT_PUBLIC_I18N_URL        — CloudFront URL for i18n translations
+#     NEXT_PUBLIC_APP_ENV         — "staging" or "production"
+#     NEXT_PUBLIC_API_KEY         — API key (protected + masked)
+#     NEXT_PUBLIC_AUTHORIZATION_TOKEN — Auth token (protected + masked)
+#     NEXT_PUBLIC_GA_TAG          — Google Analytics tag (optional)
+#     NEXT_PUBLIC_MIXPANEL_TOKEN  — Mixpanel token (optional, masked)
+#     NEXT_PUBLIC_TINYBIRD_TOKEN  — Tinybird token (optional, masked)
+#     NEXT_PUBLIC_TINYBIRD_URL    — Tinybird API URL (optional)
+#     NEXT_PUBLIC_TILESERVER_URL  — Map tile server URL (optional)
+#     CF_DISTRIBUTION_ID          — CloudFront distribution ID (from CDK output)
+#     HEALTH_CHECK_URL            — Public URL for smoke tests (CloudFront domain)
+#     BASIC_AUTH_PASS             — Basic auth password for staging smoke test (masked)
+#
+#   LOAD TEST (optional, per environment):
+#     LOAD_TEST_AUTH_USER         — Basic auth user (default: admin)
+#     LOAD_TEST_AUTH_PASS         — Basic auth password (masked)
+#
+# AWS credentials: NOT required — GitLab runner uses EC2 instance profile.
+#
+# Rollback:
+#   Staging:
+#     aws ecs update-service --cluster kkmnow-staging --service kkmnow-frontend-staging \
+#       --task-definition kkmnow-frontend-staging:<prev-revision> --region ap-southeast-5
+#   Production:
+#     aws ecs update-service --cluster kkmnow-production --service kkmnow-frontend-production \
+#       --task-definition kkmnow-frontend-production:<prev-revision> --region ap-southeast-5
+# ══════════════════════════════════════════════════════════════════════════════
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_BUILDKIT: "1"
+  AWS_DEFAULT_REGION: ap-southeast-5
+  ECR_REGISTRY: 624693141495.dkr.ecr.ap-southeast-5.amazonaws.com
+  ECR_REPOSITORY: kkmnow-frontend
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+stages:
+  - quality
+  - build-and-push
+  - deploy
+  - verify
+  - load-test
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage: quality — runs on every MR and on staging/main branch pushes
+# ══════════════════════════════════════════════════════════════════════════════
+
+lint:
+  stage: quality
+  tags:
+    - aws-medium
+  image: node:22-alpine
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+  cache:
+    key:
+      files:
+        - yarn.lock
+    paths:
+      - node_modules/
+      - .yarn/cache/
+    policy: pull-push
+  before_script:
+    - yarn install --frozen-lockfile --network-timeout 600000
+  script:
+    - npx turbo run lint --filter=kkmnow
+
+typecheck:
+  stage: quality
+  tags:
+    - aws-medium
+  image: node:22-alpine
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+  cache:
+    key:
+      files:
+        - yarn.lock
+    paths:
+      - node_modules/
+      - .yarn/cache/
+    policy: pull
+  before_script:
+    - yarn install --frozen-lockfile --network-timeout 600000
+  script:
+    - npx tsc --noEmit --project apps/kkmnow/tsconfig.json
+  allow_failure: true  # Remove once all TS errors are fixed
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage: build-and-push — separate builds per environment
+#
+# NEXT_PUBLIC_* variables are baked into the Next.js JS bundle at compile time,
+# so staging and production MUST be built separately. Each job declares an
+# environment with action: prepare so GitLab injects the correct env-scoped
+# variables (NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_APP_ENV, etc.) at build time.
+#
+# Image tagging:
+#   :$CI_COMMIT_SHORT_SHA  — immutable, used for rollback reference
+#   :staging / :main       — mutable env tag, used by ECS task definition
+# ══════════════════════════════════════════════════════════════════════════════
+
+.build_template: &build_template
+  stage: build-and-push
+  tags:
+    - aws-medium
+  image: docker:27
+  services:
+    - docker:27-dind
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  before_script:
+    - apk add --no-cache aws-cli
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION |
+      docker login --username AWS --password-stdin $ECR_REGISTRY
+  script:
+    # Pull env-tagged image for layer cache (best-effort, may not exist on first run)
+    - docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG || true
+    # Build with all NEXT_PUBLIC_* args injected from env-scoped GitLab variables
+    - |
+      docker build \
+        --platform linux/amd64 \
+        -f apps/kkmnow/Dockerfile \
+        --cache-from "$ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG" \
+        --build-arg "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
+        --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" \
+        --build-arg "NEXT_PUBLIC_S3_URL=$NEXT_PUBLIC_S3_URL" \
+        --build-arg "NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV" \
+        --build-arg "NEXT_PUBLIC_API_KEY=$NEXT_PUBLIC_API_KEY" \
+        --build-arg "NEXT_PUBLIC_AUTHORIZATION_TOKEN=$NEXT_PUBLIC_AUTHORIZATION_TOKEN" \
+        --build-arg "NEXT_PUBLIC_GA_TAG=$NEXT_PUBLIC_GA_TAG" \
+        --build-arg "NEXT_PUBLIC_MIXPANEL_TOKEN=$NEXT_PUBLIC_MIXPANEL_TOKEN" \
+        --build-arg "NEXT_PUBLIC_TINYBIRD_TOKEN=$NEXT_PUBLIC_TINYBIRD_TOKEN" \
+        --build-arg "NEXT_PUBLIC_TINYBIRD_URL=$NEXT_PUBLIC_TINYBIRD_URL" \
+        --build-arg "NEXT_PUBLIC_TILESERVER_URL=$NEXT_PUBLIC_TILESERVER_URL" \
+        --build-arg "NEXT_PUBLIC_I18N_URL=$NEXT_PUBLIC_I18N_URL" \
+        -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+        -t "$ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG" \
+        .
+    # Push commit-SHA tag (immutable — safe rollback reference)
+    - docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+    # Push env tag (mutable — ECS task definition pulls this on deploy)
+    - docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG"
+    - echo "Pushed $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+    - echo "Pushed $ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG"
+  dependencies: []
+
+build_staging:
+  <<: *build_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+  environment:
+    name: staging
+    action: prepare  # Injects staging-scoped variables without creating a deployment record
+  variables:
+    ENV_TAG: staging
+
+build_production:
+  <<: *build_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: production
+    action: prepare  # Injects production-scoped variables without creating a deployment record
+  variables:
+    ENV_TAG: main
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage: deploy — ECS rolling deployment
+# ══════════════════════════════════════════════════════════════════════════════
+
+.deploy_template: &deploy_template
+  stage: deploy
+  tags:
+    - aws-large
+  image:
+    name: amazon/aws-cli:2.22
+    entrypoint: [""]
+  script:
+    - |
+      echo "Deploying $IMAGE_TAG to $ECS_SERVICE on cluster $ECS_CLUSTER..."
+      aws ecs update-service \
+        --cluster $ECS_CLUSTER \
+        --service $ECS_SERVICE \
+        --force-new-deployment \
+        --region $AWS_DEFAULT_REGION
+    - |
+      echo "Waiting for service to stabilize (up to 10 min)..."
+      aws ecs wait services-stable \
+        --cluster $ECS_CLUSTER \
+        --services $ECS_SERVICE \
+        --region $AWS_DEFAULT_REGION
+    - echo "Deployment complete — service is stable."
+  dependencies: []
+
+deploy_staging:
+  <<: *deploy_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+  needs:
+    - job: build_staging
+      artifacts: false
+  environment:
+    name: staging
+    url: https://$HEALTH_CHECK_URL
+  variables:
+    ECS_CLUSTER: kkmnow-staging
+    ECS_SERVICE: kkmnow-frontend-staging
+
+deploy_production:
+  <<: *deploy_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+      allow_failure: false  # Blocks verify_production until manually approved
+  needs:
+    - job: build_production
+      artifacts: false
+  environment:
+    name: production
+    url: https://$HEALTH_CHECK_URL
+  variables:
+    ECS_CLUSTER: kkmnow-production
+    ECS_SERVICE: kkmnow-frontend-production
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage: verify — CloudFront invalidation + smoke tests
+# ══════════════════════════════════════════════════════════════════════════════
+
+.verify_template: &verify_template
+  stage: verify
+  tags:
+    - aws-medium
+  image:
+    name: amazon/aws-cli:2.22
+    entrypoint: [""]
+  retry:
+    max: 1
+    when:
+      - script_failure
+  before_script:
+    - yum install -y curl > /dev/null 2>&1 || true
+  script:
+    # ── CloudFront cache invalidation ──────────────────────────────────────
+    - |
+      if [ -n "$CF_DISTRIBUTION_ID" ]; then
+        INVALIDATION_ID=$(aws cloudfront create-invalidation \
+          --distribution-id $CF_DISTRIBUTION_ID \
+          --paths "/*" \
+          --region us-east-1 \
+          --query 'Invalidation.Id' \
+          --output text)
+        echo "CloudFront invalidation created: $INVALIDATION_ID"
+      else
+        echo "WARNING: CF_DISTRIBUTION_ID not set — skipping CloudFront invalidation"
+      fi
+    # ── Smoke test: health endpoint ────────────────────────────────────────
+    - |
+      if [ -n "$HEALTH_CHECK_URL" ]; then
+        echo "Running health check against $HEALTH_CHECK_URL..."
+        for i in $(seq 1 18); do
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+            "$HEALTH_CHECK_URL/api/health" 2>/dev/null || echo "000")
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Health check passed (attempt $i/18)"
+            break
+          fi
+          echo "  Waiting... (attempt $i/18, got HTTP $HTTP_CODE)"
+          sleep 10
+        done
+        if [ "$HTTP_CODE" != "200" ]; then
+          echo "ERROR: Health check failed after 3 minutes"
+          exit 1
+        fi
+      else
+        echo "WARNING: HEALTH_CHECK_URL not set — skipping health check"
+      fi
+    # ── Smoke test: homepage reachability ──────────────────────────────────
+    - |
+      if [ -n "$HEALTH_CHECK_URL" ]; then
+        HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+          -u "${BASIC_AUTH_USER:-admin}:${BASIC_AUTH_PASS:-skip}" \
+          "$HEALTH_CHECK_URL/" 2>/dev/null || echo "000")
+        if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
+          echo "Homepage reachable (HTTP $HTTP_CODE)"
+        else
+          echo "ERROR: Homepage returned unexpected HTTP $HTTP_CODE"
+          exit 1
+        fi
+      fi
+  dependencies: []
+
+verify_staging:
+  <<: *verify_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+  needs:
+    - job: deploy_staging
+  environment:
+    name: staging
+    action: verify
+
+verify_production:
+  <<: *verify_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  needs:
+    - job: deploy_production
+  environment:
+    name: production
+    action: verify
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage: load-test — k6 load testing (manual trigger only)
+# ══════════════════════════════════════════════════════════════════════════════
+# Runs k6 on a large runner against the deployed service.
+# Results are saved as JSON artifacts for review.
+#
+# Required CI/CD variables (per environment):
+#   LOAD_TEST_AUTH_USER  — Basic Auth user (default: admin)
+#   LOAD_TEST_AUTH_PASS  — Basic Auth password (masked)
+#
+# Optional overrides:
+#   K6_VUS               — max virtual users
+#   K6_DURATION          — test duration
+
+.load_test_template: &load_test_template
+  stage: load-test
+  tags:
+    - aws-large
+  image:
+    name: grafana/k6:0.55.0
+    entrypoint: [""]
+  when: manual
+  allow_failure: true  # Load test failure does not block the pipeline
+  script:
+    - |
+      echo "═══════════════════════════════════════════════"
+      echo "  k6 Load Test — $CI_ENVIRONMENT_NAME"
+      echo "  Target: $LOAD_TEST_BASE_URL"
+      echo "═══════════════════════════════════════════════"
+    - |
+      k6 run scripts/k6-load-test.js \
+        -e BASE_URL="$LOAD_TEST_BASE_URL" \
+        -e AUTH_USER="${LOAD_TEST_AUTH_USER:-admin}" \
+        -e AUTH_PASS="$LOAD_TEST_AUTH_PASS" \
+        -e K6_REPORT_PATH="load-test-report.json" \
+        ${K6_VUS:+--vus $K6_VUS} \
+        ${K6_DURATION:+--duration $K6_DURATION} \
+        || true
+    - |
+      if [ -f load-test-report.json ]; then
+        echo "Full report saved to load-test-report.json"
+        cat load-test-report.json
+      fi
+  artifacts:
+    paths:
+      - load-test-report.json
+    expire_in: 30 days
+    when: always
+  dependencies: []
+
+load_test_staging:
+  <<: *load_test_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+      when: manual
+  needs:
+    - job: verify_staging
+  environment:
+    name: staging
+    action: verify
+  variables:
+    LOAD_TEST_BASE_URL: ${HEALTH_CHECK_URL:-https://d1zofdcmpfqbdi.cloudfront.net}
+
+load_test_production:
+  <<: *load_test_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  needs:
+    - job: verify_production
+  environment:
+    name: production
+    action: verify
+  variables:
+    LOAD_TEST_BASE_URL: ${HEALTH_CHECK_URL:-https://data.moh.gov.my}
