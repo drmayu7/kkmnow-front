@@ -63,6 +63,14 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# NEXT_PUBLIC_* vars needed at runtime by next-i18next.config.js (server-side require).
+# These are also baked into the client bundle at build time, but the server-side
+# i18next-http-backend reads process.env at runtime to construct the translation URL.
+ARG NEXT_PUBLIC_I18N_URL
+ARG NEXT_PUBLIC_APP_ENV
+ENV NEXT_PUBLIC_I18N_URL=$NEXT_PUBLIC_I18N_URL
+ENV NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
