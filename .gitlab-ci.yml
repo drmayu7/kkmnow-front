@@ -208,7 +208,7 @@ build_production:
   tags:
     - aws-large
   image:
-    name: amazon/aws-cli:2.22
+    name: amazon/aws-cli:latest
     entrypoint: [""]
   script:
     - |
@@ -266,7 +266,7 @@ deploy_production:
   tags:
     - aws-medium
   image:
-    name: amazon/aws-cli:2.22
+    name: amazon/aws-cli:latest
     entrypoint: [""]
   retry:
     max: 1
