@@ -11,34 +11,55 @@ import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as appautoscaling from "aws-cdk-lib/aws-applicationautoscaling";
 
-// ─── Existing resource IDs (from KkmnowNetwork + KkmnowStagingCompute stacks) ─
-const EXISTING = {
-  vpcId: "vpc-0605bf6e50eafcec9",
-  albArn:
-    "arn:aws:elasticloadbalancing:ap-southeast-5:624693141495:loadbalancer/app/kkmnow-staging-alb/72409aaffa96e94b",
-  albSgId: "sg-0078f4022352a1317",
-  ecsClusterName: "kkmnow-staging",
-  appConfigSecretArn:
-    "arn:aws:secretsmanager:ap-southeast-5:624693141495:secret:kkmnow/staging/app-config-xNnjS6",
-};
+// ─── Environment configuration ───────────────────────────────────────────────
+// All environment-specific values are passed via FrontendStackProps.
+// Staging and production share the same VPC and ECR repo; everything else
+// (ALB, cluster, secrets, scaling limits) is environment-specific.
+export interface FrontendEnvironmentConfig {
+  /** Used for resource naming and tagging throughout the stack. */
+  envName: "staging" | "production";
+  vpcId: string;
+  albArn: string;
+  albDnsName: string;
+  albSgId: string;
+  ecsClusterName: string;
+  /** Full ARN including the 6-char random suffix, e.g. "…/kkmnow/staging/app-config-xNnjS6" */
+  appConfigSecretArn: string;
+  /** Initial desired task count (auto-scaling takes over after steady state). */
+  desiredCount: number;
+  minCapacity: number;
+  maxCapacity: number;
+}
+
+export interface FrontendStackProps extends cdk.StackProps {
+  config: FrontendEnvironmentConfig;
+}
 
 export class FrontendStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: FrontendStackProps) {
     super(scope, id, props);
 
+    const { config } = props;
+    const { envName } = config;
+
+    // CloudFront cache policy names are account-global and immutable once created.
+    // Strategy: keep existing staging names unchanged to avoid resource replacement,
+    // use a "-prod" prefix only for production to guarantee uniqueness.
+    const policyPrefix = envName === "staging" ? "kkmnow-frontend" : "kkmnow-frontend-prod";
+
     // ─── Import existing resources ────────────────────────────────────────
-    const vpc = ec2.Vpc.fromLookup(this, "Vpc", { vpcId: EXISTING.vpcId });
+    const vpc = ec2.Vpc.fromLookup(this, "Vpc", { vpcId: config.vpcId });
 
     const alb = elbv2.ApplicationLoadBalancer.fromApplicationLoadBalancerAttributes(this, "Alb", {
-      loadBalancerArn: EXISTING.albArn,
-      securityGroupId: EXISTING.albSgId,
-      loadBalancerDnsName: "kkmnow-staging-alb-1708157029.ap-southeast-5.elb.amazonaws.com",
+      loadBalancerArn: config.albArn,
+      securityGroupId: config.albSgId,
+      loadBalancerDnsName: config.albDnsName,
     });
 
-    const albSg = ec2.SecurityGroup.fromSecurityGroupId(this, "AlbSg", EXISTING.albSgId);
+    const albSg = ec2.SecurityGroup.fromSecurityGroupId(this, "AlbSg", config.albSgId);
 
     const cluster = ecs.Cluster.fromClusterAttributes(this, "Cluster", {
-      clusterName: EXISTING.ecsClusterName,
+      clusterName: config.ecsClusterName,
       vpc,
       securityGroups: [],
     });
@@ -46,13 +67,15 @@ export class FrontendStack extends cdk.Stack {
     const appConfigSecret = secretsmanager.Secret.fromSecretCompleteArn(
       this,
       "AppConfigSecret",
-      EXISTING.appConfigSecretArn
+      config.appConfigSecretArn
     );
 
-    // ─── ECR Repository (import existing — created with RETAIN policy) ───
+    // ─── ECR Repository (shared across environments — import by name) ────
     const repo = ecr.Repository.fromRepositoryName(this, "FrontendRepo", "kkmnow-frontend");
 
     // ─── Security Group for frontend ECS tasks ───────────────────────────
+    // NOTE: GroupDescription is immutable on AWS — changing it forces SG replacement.
+    // Keep the original description to avoid replacing the existing staging SG.
     const frontendSg = new ec2.SecurityGroup(this, "SgFrontend", {
       vpc,
       description: "Frontend ECS tasks - allow port 3000 from ALB",
@@ -61,12 +84,12 @@ export class FrontendStack extends cdk.Stack {
     frontendSg.addIngressRule(albSg, ec2.Port.tcp(3000), "Allow ALB to frontend on port 3000");
 
     // ─── ALB: Allow inbound on port 3000 (for CloudFront origin) ─────────
-    // CloudFront connects to ALB on port 3000 via custom origin port
+    // CloudFront connects to ALB on port 3000 via custom origin port.
     albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(3000), "Allow CloudFront to ALB on 3000");
 
     // ─── ALB Listener on port 3000 → Frontend Target Group ───────────────
     const targetGroup = new elbv2.ApplicationTargetGroup(this, "FrontendTg", {
-      targetGroupName: "kkmnow-frontend-staging",
+      targetGroupName: `kkmnow-frontend-${envName}`,
       vpc,
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -91,7 +114,7 @@ export class FrontendStack extends cdk.Stack {
 
     // ─── CloudWatch Logs ─────────────────────────────────────────────────
     const logGroup = new logs.LogGroup(this, "FrontendLogs", {
-      logGroupName: "/ecs/kkmnow-frontend-staging",
+      logGroupName: `/ecs/kkmnow-frontend-${envName}`,
       retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -114,9 +137,13 @@ export class FrontendStack extends cdk.Stack {
     appConfigSecret.grantRead(taskRole);
 
     // ─── ECS Task Definition ─────────────────────────────────────────────
-    // 1 vCPU + 2 GB — doubles per-task capacity for Node.js single-threaded workload
+    // 1 vCPU + 2 GB — doubles per-task capacity for Node.js single-threaded workload.
+    // Image tag convention: "staging" branch pushes :staging, "main" branch pushes :main.
+    // Using the env-named tag ensures each environment only picks up its own build.
+    const imageTag = envName === "staging" ? "staging" : "main";
+
     const taskDef = new ecs.FargateTaskDefinition(this, "FrontendTask", {
-      family: "kkmnow-frontend-staging",
+      family: `kkmnow-frontend-${envName}`,
       cpu: 1024,
       memoryLimitMiB: 2048,
       executionRole,
@@ -124,7 +151,7 @@ export class FrontendStack extends cdk.Stack {
     });
 
     const container = taskDef.addContainer("AppContainer", {
-      image: ecs.ContainerImage.fromEcrRepository(repo, "latest"),
+      image: ecs.ContainerImage.fromEcrRepository(repo, imageTag),
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: "frontend",
         logGroup,
@@ -152,10 +179,10 @@ export class FrontendStack extends cdk.Stack {
 
     // ─── ECS Service ─────────────────────────────────────────────────────
     const service = new ecs.FargateService(this, "FrontendService", {
-      serviceName: "kkmnow-frontend-staging",
+      serviceName: `kkmnow-frontend-${envName}`,
       cluster,
       taskDefinition: taskDef,
-      desiredCount: 2,
+      desiredCount: config.desiredCount,
       securityGroups: [frontendSg],
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
@@ -168,41 +195,38 @@ export class FrontendStack extends cdk.Stack {
 
     // ─── Auto-Scaling ────────────────────────────────────────────────────
     const scaling = service.autoScaleTaskCount({
-      minCapacity: 2,
-      maxCapacity: 6,
+      minCapacity: config.minCapacity,
+      maxCapacity: config.maxCapacity,
     });
 
     scaling.scaleOnCpuUtilization("CpuScaling", {
-      targetUtilizationPercent: 50,       // Trigger earlier (was 60%)
+      targetUtilizationPercent: 50,
       scaleInCooldown: cdk.Duration.seconds(300),
-      scaleOutCooldown: cdk.Duration.seconds(60),  // React faster (was 120s)
+      scaleOutCooldown: cdk.Duration.seconds(60),
     });
 
     scaling.scaleOnRequestCount("RequestScaling", {
       targetGroup,
-      requestsPerTarget: 300,             // Scale sooner under load (was 500)
+      requestsPerTarget: 300,
       scaleInCooldown: cdk.Duration.seconds(300),
-      scaleOutCooldown: cdk.Duration.seconds(60),  // React faster (was 120s)
+      scaleOutCooldown: cdk.Duration.seconds(60),
     });
 
     // ─── CloudFront Distribution ─────────────────────────────────────────
-    const albOrigin = new origins.HttpOrigin(
-      "kkmnow-staging-alb-1708157029.ap-southeast-5.elb.amazonaws.com",
-      {
-        httpPort: 3000,
-        protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-        connectionAttempts: 3,
-        connectionTimeout: cdk.Duration.seconds(10),
-      }
-    );
+    const albOrigin = new origins.HttpOrigin(config.albDnsName, {
+      httpPort: 3000,
+      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+      connectionAttempts: 3,
+      connectionTimeout: cdk.Duration.seconds(10),
+    });
 
     const distribution = new cloudfront.Distribution(this, "FrontendCdn", {
-      comment: "KKMNow Frontend (staging)",
+      comment: `KKMNow Frontend (${envName})`,
       defaultBehavior: {
         origin: albOrigin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: new cloudfront.CachePolicy(this, "DefaultCachePolicy", {
-          cachePolicyName: "kkmnow-frontend-default",
+          cachePolicyName: `${policyPrefix}-default`,
           comment: "ISR/SSR pages - respect origin Cache-Control headers",
           defaultTtl: cdk.Duration.seconds(0),
           minTtl: cdk.Duration.seconds(0),
@@ -229,7 +253,7 @@ export class FrontendStack extends cdk.Stack {
           origin: albOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: new cloudfront.CachePolicy(this, "StaticCachePolicy", {
-            cachePolicyName: "kkmnow-frontend-static",
+            cachePolicyName: `${policyPrefix}-static`,
             comment: "Public static files - 24h cache",
             defaultTtl: cdk.Duration.hours(24),
             minTtl: cdk.Duration.seconds(0),
@@ -239,14 +263,14 @@ export class FrontendStack extends cdk.Stack {
           }),
           compress: true,
         },
-        // Data catalogue — SSR, short default TTL to reduce origin load during spikes
+        // Data catalogue — SSR, short default TTL to absorb traffic spikes
         "/data-catalogue*": {
           origin: albOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: new cloudfront.CachePolicy(this, "SsrCachePolicy", {
-            cachePolicyName: "kkmnow-frontend-ssr",
+            cachePolicyName: `${policyPrefix}-ssr`,
             comment: "SSR pages - 60s default TTL to absorb traffic spikes, origin can override",
-            defaultTtl: cdk.Duration.seconds(60),   // Cache SSR for 60s by default (was 0)
+            defaultTtl: cdk.Duration.seconds(60),
             minTtl: cdk.Duration.seconds(0),
             maxTtl: cdk.Duration.hours(6),
             headerBehavior: cloudfront.CacheHeaderBehavior.allowList("Accept-Language"),
@@ -266,29 +290,29 @@ export class FrontendStack extends cdk.Stack {
     // ─── Outputs ─────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, "EcrRepoUri", {
       value: repo.repositoryUri,
-      exportName: "kkmnow-staging-frontend-ecr-uri",
+      exportName: `kkmnow-${envName}-frontend-ecr-uri`,
     });
 
     new cdk.CfnOutput(this, "ServiceName", {
       value: service.serviceName,
-      exportName: "kkmnow-staging-frontend-service-name",
+      exportName: `kkmnow-${envName}-frontend-service-name`,
     });
 
     new cdk.CfnOutput(this, "CloudFrontDomain", {
       value: distribution.distributionDomainName,
-      description: "CloudFront distribution domain for the frontend",
-      exportName: "kkmnow-staging-frontend-cf-domain",
+      description: "CloudFront distribution domain — use this as HEALTH_CHECK_URL in GitLab CI",
+      exportName: `kkmnow-${envName}-frontend-cf-domain`,
     });
 
     new cdk.CfnOutput(this, "CloudFrontDistributionId", {
       value: distribution.distributionId,
-      description: "CloudFront distribution ID (for CI/CD invalidation)",
-      exportName: "kkmnow-staging-frontend-cf-id",
+      description: "CloudFront distribution ID — use this as CF_DISTRIBUTION_ID in GitLab CI",
+      exportName: `kkmnow-${envName}-frontend-cf-id`,
     });
 
     new cdk.CfnOutput(this, "TargetGroupArn", {
       value: targetGroup.targetGroupArn,
-      exportName: "kkmnow-staging-frontend-tg-arn",
+      exportName: `kkmnow-${envName}-frontend-tg-arn`,
     });
   }
 }
