@@ -366,22 +366,29 @@ verify_production:
     name: grafana/k6:0.55.0
     entrypoint: [""]
   when: manual
-  allow_failure: true  # Load test failure does not block the pipeline
+  allow_failure: true  # Threshold failures are informational — don't block pipeline
   script:
+    # Validate that HEALTH_CHECK_URL is set for this environment
+    - |
+      if [ -z "$HEALTH_CHECK_URL" ]; then
+        echo "ERROR: HEALTH_CHECK_URL is not set for environment '$CI_ENVIRONMENT_NAME'."
+        echo "  Go to GitLab > Settings > CI/CD > Variables and add HEALTH_CHECK_URL"
+        echo "  scoped to the '$CI_ENVIRONMENT_NAME' environment."
+        exit 1
+      fi
     - |
       echo "═══════════════════════════════════════════════"
       echo "  k6 Load Test — $CI_ENVIRONMENT_NAME"
-      echo "  Target: $LOAD_TEST_BASE_URL"
+      echo "  Target: $HEALTH_CHECK_URL"
       echo "═══════════════════════════════════════════════"
     - |
       k6 run scripts/k6-load-test.js \
-        -e BASE_URL="$LOAD_TEST_BASE_URL" \
+        -e BASE_URL="$HEALTH_CHECK_URL" \
         -e AUTH_USER="${LOAD_TEST_AUTH_USER:-admin}" \
-        -e AUTH_PASS="$LOAD_TEST_AUTH_PASS" \
+        -e AUTH_PASS="${LOAD_TEST_AUTH_PASS:-}" \
         -e K6_REPORT_PATH="load-test-report.json" \
         ${K6_VUS:+--vus $K6_VUS} \
-        ${K6_DURATION:+--duration $K6_DURATION} \
-        || true
+        ${K6_DURATION:+--duration $K6_DURATION}
     - |
       if [ -f load-test-report.json ]; then
         echo "Full report saved to load-test-report.json"
@@ -404,8 +411,6 @@ load_test_staging:
   environment:
     name: staging
     action: verify
-  variables:
-    LOAD_TEST_BASE_URL: ${HEALTH_CHECK_URL:-https://d1zofdcmpfqbdi.cloudfront.net}
 
 load_test_production:
   <<: *load_test_template
@@ -417,5 +422,3 @@ load_test_production:
   environment:
     name: production
     action: verify
-  variables:
-    LOAD_TEST_BASE_URL: ${HEALTH_CHECK_URL:-https://data.moh.gov.my}
