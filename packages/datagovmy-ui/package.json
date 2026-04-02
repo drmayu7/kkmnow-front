@@ -147,7 +147,7 @@
     "dom-to-image": "^2.6.0",
     "downshift": "^9.0.4",
     "geojson-bbox": "^0.0.1",
-    "highlight.js": "^11.6.0",
+    "highlight.js": "^11.10.0",
     "i18next": "^22.4.14",
     "i18next-http-backend": "^2.2.0",
     "leaflet": "^1.9.1",
