@@ -3,6 +3,14 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
+/* Explicit @font-face for "Inter" so Chart.js canvas rendering can find it.
+   next/font/local generates a hashed font-family name, which canvas can't resolve. */
+@font-face {
+  font-family: "Inter";
+  src: url("../configs/fonts/Inter-latin.woff2") format("woff2");
+  font-display: swap;
+}
+
 /* MODULE CSS */
 @import "./dashboards/general.css";
 @import "./dashboards/table.css";
