@@ -273,7 +273,7 @@ deploy_production:
     when:
       - script_failure
   before_script:
-    - yum install -y curl > /dev/null 2>&1 || true
+    - yum install -y --allowerasing curl ca-certificates > /dev/null 2>&1 || true
   script:
     # ── CloudFront cache invalidation ──────────────────────────────────────
     - |
@@ -294,7 +294,7 @@ deploy_production:
         echo "Running health check against $HEALTH_CHECK_URL..."
         for i in $(seq 1 18); do
           HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
-            "$HEALTH_CHECK_URL/api/health" 2>/dev/null || echo "000")
+            "$HEALTH_CHECK_URL/api/health" 2>/dev/null) || HTTP_CODE="000"
           if [ "$HTTP_CODE" = "200" ]; then
             echo "Health check passed (attempt $i/18)"
             break
@@ -314,7 +314,7 @@ deploy_production:
       if [ -n "$HEALTH_CHECK_URL" ]; then
         HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
           -u "${BASIC_AUTH_USER:-admin}:${BASIC_AUTH_PASS:-skip}" \
-          "$HEALTH_CHECK_URL/" 2>/dev/null || echo "000")
+          "$HEALTH_CHECK_URL/" 2>/dev/null) || HTTP_CODE="000"
         if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
           echo "Homepage reachable (HTTP $HTTP_CODE)"
         else
