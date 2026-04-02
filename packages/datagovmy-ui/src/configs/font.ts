@@ -1,15 +1,16 @@
-import { Poppins, Inter } from "next/font/google";
+import localFont from "next/font/local";
 
-const header = Poppins({
-  weight: ["700"],
-  subsets: ["latin"],
+const header = localFont({
+  src: "./fonts/Poppins-Bold.woff2",
+  weight: "700",
   variable: "--font-header",
+  display: "swap",
 });
 
-const body = Inter({
-  weight: ["400", "500", "600", "700"],
-  subsets: ["latin"],
+const body = localFont({
+  src: "./fonts/Inter-latin.woff2",
   variable: "--font-body",
+  display: "swap",
 });
 
 export { header, body };
