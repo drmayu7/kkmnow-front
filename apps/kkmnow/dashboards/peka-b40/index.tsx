@@ -18,6 +18,10 @@ import { DateTime } from "luxon";
 import dynamic from "next/dynamic";
 import { FunctionComponent } from "react";
 
+// Pin all luxon calculations on this page to Malaysia time so the server-rendered
+// HTML matches the client-rendered HTML (ECS runs UTC, clients are MYT).
+const MYT = "Asia/Kuala_Lumpur";
+
 /**
  * PekaB40 Dashboard
  * @overview Status: In-development
@@ -46,11 +50,16 @@ const PekaB40: FunctionComponent<PekaB40Props> = ({
 
   const sixMonths = Math.ceil(
     Math.abs(
-      DateTime.fromSeconds(timeseries.data.daily.x[timeseries.data.daily.x.length - 1] / 1000)
+      DateTime.fromSeconds(timeseries.data.daily.x[timeseries.data.daily.x.length - 1] / 1000, {
+        zone: MYT,
+      })
         .minus({ months: 6 })
         .startOf("month")
         .diff(
-          DateTime.fromSeconds(timeseries.data.daily.x[timeseries.data.daily.x.length - 1] / 1000),
+          DateTime.fromSeconds(
+            timeseries.data.daily.x[timeseries.data.daily.x.length - 1] / 1000,
+            { zone: MYT }
+          ),
           ["days"]
         ).days
     )

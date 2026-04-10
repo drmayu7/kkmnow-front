@@ -177,6 +177,10 @@ export const AnalyticsProvider: FunctionComponent<ContextChildren> = ({ meta, ch
 
   // Tinybird increment view count
   const track = async (id: string, type: Meta["type"], metric: MetricType) => {
+    // Silent no-op when TinyBird is not configured for this environment.
+    // Prevents the relative-URL fetch that returns the Next.js HTML 404 page
+    // and throws `SyntaxError: Unexpected token '<'` when parsed as JSON.
+    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/events?name=dgmy_views&wait=true`,
@@ -255,6 +259,7 @@ export const AnalyticsProvider: FunctionComponent<ContextChildren> = ({ meta, ch
 
   // For DC only. Tinybird update download count for DC.
   const updateDownloadCount = async (id: string, format: DownloadFileFormat) => {
+    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/events?name=dgmy_dc_dls`,
@@ -298,6 +303,7 @@ export const AnalyticsProvider: FunctionComponent<ContextChildren> = ({ meta, ch
       resource_id?: number;
     }
   ) => {
+    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
     try {
       const { country, city } = await getGeolocation();
 
