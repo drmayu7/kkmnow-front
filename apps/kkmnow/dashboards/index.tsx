@@ -314,6 +314,8 @@ const DashboardCard: FunctionComponent<{ item: Dashboard }> = ({ item }) => {
   const [views, setViews] = useState<View[]>([]);
 
   useEffect(() => {
+    // Silent no-op when TinyBird is not configured for this environment.
+    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
     const fetchViews = async () => {
       try {
         const response = await fetch(

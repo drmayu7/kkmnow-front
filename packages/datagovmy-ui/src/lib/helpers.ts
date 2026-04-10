@@ -151,7 +151,14 @@ export const toDate = (
   locale: string = "en-GB"
 ): string => {
   if (typeof timestamp === "number") {
-    const formatted_date = DateTime.fromMillis(timestamp).setLocale(locale).toFormat(format);
+    // Pin zone to Asia/Kuala_Lumpur so the formatted output is identical on
+    // the SSR server (ECS Fargate, default UTC) and the client (MYT, UTC+8).
+    // Without this, any timestamp near a day boundary produces different day
+    // strings on server vs client and trips React hydration errors in
+    // components like Slider that render date labels in server HTML.
+    const formatted_date = DateTime.fromMillis(timestamp, { zone: "Asia/Kuala_Lumpur" })
+      .setLocale(locale)
+      .toFormat(format);
     return formatted_date !== "Invalid DateTime" ? formatted_date : "N/A";
   }
 
