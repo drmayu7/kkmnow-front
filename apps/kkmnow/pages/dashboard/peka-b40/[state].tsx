@@ -6,6 +6,7 @@ import { useTranslation } from "datagovmy-ui/hooks";
 import { get } from "datagovmy-ui/api";
 import { withi18n } from "datagovmy-ui/decorators";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { Page } from "datagovmy-ui/types";
 import { CountryAndStates, STATE_CODES } from "datagovmy-ui/constants";
 
@@ -92,7 +93,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         params: params,
         choropleth: data.choropleth_malaysia,
       },
-      revalidate: 60 * 60 * 24, // 1 day (in seconds)
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

@@ -5,6 +5,7 @@ import { useTranslation } from "datagovmy-ui/hooks";
 import { get } from "datagovmy-ui/api";
 import { withi18n } from "datagovmy-ui/decorators";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { Page } from "datagovmy-ui/types";
 import { InferGetStaticPropsType, GetStaticProps } from "next";
 import { AnalyticsProvider } from "datagovmy-ui/contexts/analytics";
@@ -72,7 +73,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         timeseries: data.timeseries,
         choropleth: data.choropleth_malaysia,
       },
-      revalidate: 60 * 60 * 24, // 1 day (in seconds)
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

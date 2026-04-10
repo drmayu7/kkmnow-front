@@ -4,6 +4,7 @@ import { useTranslation } from "next-i18next";
 import { Page } from "datagovmy-ui/types";
 import { withi18n } from "datagovmy-ui/decorators";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { Metadata } from "datagovmy-ui/components";
 import DashboardIndex from "@dashboards/index";
 import { get } from "datagovmy-ui/api";
@@ -95,6 +96,7 @@ export const getStaticProps: GetStaticProps = withi18n(["kkmnow-home"], async ()
       timeseries: data.timeseries ?? { data_as_of: "", data: {} },
       timeseries_callout: data.timeseries_callout ?? { data_as_of: "", data: {} },
     },
+    revalidate: ISR_REVALIDATE,
   };
 });
 
