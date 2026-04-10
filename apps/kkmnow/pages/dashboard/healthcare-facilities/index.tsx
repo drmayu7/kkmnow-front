@@ -8,6 +8,7 @@ import { Page } from "datagovmy-ui/types";
 import Layout from "@components/Layout";
 import { Metadata, StateDropdown, StateModal } from "datagovmy-ui/components";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { AnalyticsProvider } from "datagovmy-ui/contexts/analytics";
 
 const HealthcareFacilities: Page = ({
@@ -75,7 +76,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         choropleth: data.choropleth_facility,
         bar_type: data.bar_type,
       },
-      revalidate: 60 * 60 * 24, // 1 day
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

@@ -5,6 +5,7 @@ import { useTranslation } from "next-i18next";
 import { get } from "datagovmy-ui/api";
 import { withi18n } from "datagovmy-ui/decorators";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { Page } from "datagovmy-ui/types";
 import { InferGetStaticPropsType, GetStaticProps, GetStaticPaths } from "next";
 import { CountryAndStates, STATE_CODES } from "datagovmy-ui/constants";
@@ -105,6 +106,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         timeseries: data.timeseries,
         statistics: data.statistics,
       },
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

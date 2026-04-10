@@ -8,6 +8,7 @@ import { withi18n } from "datagovmy-ui/decorators";
 import { get } from "datagovmy-ui/api";
 import { DateTime } from "luxon";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import BloodDonationDashboard from "@dashboards/blood-donation";
 import { WindowProvider } from "datagovmy-ui/contexts/window";
 import { AnalyticsProvider } from "datagovmy-ui/contexts/analytics";
@@ -140,7 +141,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         },
         choropleth: data.choropleth_malaysia,
       },
-      revalidate: 60 * 60 * 24, // 1 day (in seconds)
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

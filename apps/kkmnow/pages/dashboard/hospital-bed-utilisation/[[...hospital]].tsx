@@ -6,6 +6,7 @@ import { useTranslation } from "datagovmy-ui/hooks";
 import { GetStaticPaths, GetStaticProps, InferGetStaticPropsType } from "next";
 import { Page } from "datagovmy-ui/types";
 import { AnalyticsProvider } from "datagovmy-ui/contexts/analytics";
+import { ISR_REVALIDATE } from "@lib/constants";
 
 const HospitalBedUtilisation: Page = ({
   meta,
@@ -72,6 +73,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         table_facility: data.table_facility,
         timeseries_facility: data.timeseries_facility.data,
       },
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

@@ -4,6 +4,7 @@ import { Metadata, StateDropdown, StateModal } from "datagovmy-ui/components";
 import { WindowProvider } from "datagovmy-ui/contexts/window";
 import { get } from "datagovmy-ui/api";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { withi18n } from "datagovmy-ui/decorators";
 import { useTranslation } from "datagovmy-ui/hooks";
 import { DateTime } from "luxon";
@@ -85,7 +86,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         barchart_age: data.barchart_age,
         barchart_time: data.barchart_time,
       },
-      revalidate: 60 * 60 * 24, // 1 day (in seconds)
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

@@ -6,6 +6,7 @@ import { useTranslation } from "datagovmy-ui/hooks";
 import { get } from "datagovmy-ui/api";
 import { CountryAndStates, STATE_CODES } from "datagovmy-ui/constants";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { withi18n } from "datagovmy-ui/decorators";
 import { DateTime } from "luxon";
 import { Page } from "datagovmy-ui/types";
@@ -105,7 +106,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         barchart_age: data.barchart_age,
         barchart_time: data.barchart_time,
       },
-      revalidate: 60 * 60 * 24, // 1 day (in seconds)
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

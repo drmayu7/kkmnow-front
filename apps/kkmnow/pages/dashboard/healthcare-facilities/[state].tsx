@@ -7,6 +7,7 @@ import { CountryAndStates, STATE_CODES } from "datagovmy-ui/constants";
 import { withi18n } from "datagovmy-ui/decorators";
 import { get } from "datagovmy-ui/api";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import HealthcareFacilitiesDashboard from "@dashboards/healthcare-facilities";
 import { WindowProvider } from "datagovmy-ui/contexts/window";
 import { AnalyticsProvider } from "datagovmy-ui/contexts/analytics";
@@ -99,7 +100,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         choropleth: data.choropleth_facility,
         bar_type: data.bar_type,
       },
-      revalidate: 60 * 60 * 24, // 1 day
+      revalidate: ISR_REVALIDATE,
     };
   }
 );

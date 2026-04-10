@@ -5,6 +5,7 @@ import { get } from "datagovmy-ui/api";
 import { CountryAndStates, STATE_CODES } from "datagovmy-ui/constants";
 import { withi18n } from "datagovmy-ui/decorators";
 import { routes } from "@lib/routes";
+import { ISR_REVALIDATE } from "@lib/constants";
 import { Page } from "datagovmy-ui/types";
 import { InferGetStaticPropsType, GetStaticProps, GetStaticPaths } from "next";
 import { useTranslation } from "datagovmy-ui/hooks";
@@ -107,6 +108,7 @@ export const getStaticProps: GetStaticProps = withi18n(
         statistics: data.statistics,
         table: data.snapshot,
       },
+      revalidate: ISR_REVALIDATE,
     };
   }
 );
