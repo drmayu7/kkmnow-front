@@ -140,10 +140,16 @@ typecheck:
   # every Python-based tool in the image — both `apk add aws-cli` AND
   # `pip install awscli` fail with the same ImportError, because pip
   # itself imports xml.parsers.expat on startup.
-  # Revert to `docker:27` (or `docker:27-cli`) once upstream fixes expat.
-  image: docker:27-cli-alpine3.20
+  #
+  # NOTE: Alpine 3.20 variants only exist as fully-versioned tags on
+  # Docker Hub (e.g. 27.3.1-cli-alpine3.20). The shorthand forms
+  # `27-cli-alpine3.20` / `27-dind-alpine3.20` do NOT exist — everything
+  # from docker 27.4+ onward was cut on Alpine 3.21, so 27.3.1 is the
+  # newest 27.x release still on Alpine 3.20. Bump this pin only after
+  # upstream Alpine 3.21 ships a fixed expat.
+  image: docker:27.3.1-cli-alpine3.20
   services:
-    - docker:27-dind-alpine3.20
+    - docker:27.3.1-dind-alpine3.20
   retry:
     max: 1
     when:
