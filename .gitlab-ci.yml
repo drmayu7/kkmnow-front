@@ -135,22 +135,22 @@ typecheck:
   stage: build-and-push
   tags:
     - aws-medium
-  image: docker:27
+  # Pinned to Alpine 3.20 because Alpine 3.21 ships a broken pyexpat
+  # (missing XML_SetAllocTrackerActivationThreshold symbol) that breaks
+  # every Python-based tool in the image — both `apk add aws-cli` AND
+  # `pip install awscli` fail with the same ImportError, because pip
+  # itself imports xml.parsers.expat on startup.
+  # Revert to `docker:27` (or `docker:27-cli`) once upstream fixes expat.
+  image: docker:27-cli-alpine3.20
   services:
-    - docker:27-dind
+    - docker:27-dind-alpine3.20
   retry:
     max: 1
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
   before_script:
-    # Install aws-cli via pip instead of apk — Alpine 3.21's aws-cli 2.22.10-r0
-    # package ships a broken pyexpat (missing XML_SetAllocTrackerActivationThreshold
-    # symbol), which breaks any `aws` invocation on docker:27-based images.
-    # pip's awscli v1 is sufficient for `ecr get-login-password` and bypasses
-    # the Alpine package entirely.
-    - apk add --no-cache python3 py3-pip
-    - pip install --break-system-packages --quiet awscli
+    - apk add --no-cache aws-cli
     - aws ecr get-login-password --region $AWS_DEFAULT_REGION |
       docker login --username AWS --password-stdin $ECR_REGISTRY
   script:
