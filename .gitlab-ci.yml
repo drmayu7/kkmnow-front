@@ -144,7 +144,13 @@ typecheck:
       - runner_system_failure
       - stuck_or_timeout_failure
   before_script:
-    - apk add --no-cache aws-cli
+    # Install aws-cli via pip instead of apk — Alpine 3.21's aws-cli 2.22.10-r0
+    # package ships a broken pyexpat (missing XML_SetAllocTrackerActivationThreshold
+    # symbol), which breaks any `aws` invocation on docker:27-based images.
+    # pip's awscli v1 is sufficient for `ecr get-login-password` and bypasses
+    # the Alpine package entirely.
+    - apk add --no-cache python3 py3-pip
+    - pip install --break-system-packages --quiet awscli
     - aws ecr get-login-password --region $AWS_DEFAULT_REGION |
       docker login --username AWS --password-stdin $ECR_REGISTRY
   script:
