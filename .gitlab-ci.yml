@@ -181,6 +181,23 @@ typecheck:
       install /tmp/docker/docker /usr/local/bin/docker
       rm -rf /tmp/docker /tmp/docker.tgz
     - docker --version
+    # Install the docker-buildx CLI plugin. The static docker-27.3.1.tgz
+    # tarball above ships only the `docker` binary — no buildx — so
+    # `docker build` under DOCKER_BUILDKIT=1 fails with:
+    #   "BuildKit is enabled but the buildx component is missing or broken"
+    # Dropping the buildx binary at the standard CLI plugin path is
+    # enough: Docker CLI auto-discovers it and routes `docker build`
+    # through buildx when BuildKit is enabled. No need to call
+    # `docker buildx create` — buildx lazily creates a default builder
+    # that talks to the dind daemon at DOCKER_HOST on first use.
+    # Bump BUILDX_VERSION alongside the docker CLI version above.
+    - |
+      BUILDX_VERSION="v0.18.0"
+      mkdir -p /usr/local/lib/docker/cli-plugins
+      curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-buildx \
+        "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-amd64"
+      chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+    - docker buildx version
     # Wait for dind daemon to finish starting (usually instant, bounded safety)
     - |
       for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -197,6 +214,7 @@ typecheck:
       docker build \
         --platform linux/amd64 \
         -f apps/kkmnow/Dockerfile \
+        --build-arg "BUILDKIT_INLINE_CACHE=1" \
         --cache-from "$ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG" \
         --build-arg "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
         --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" \
