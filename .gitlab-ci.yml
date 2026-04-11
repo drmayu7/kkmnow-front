@@ -155,13 +155,13 @@ typecheck:
   services:
     - name: docker:27-dind
       alias: docker
-  variables:
-    # Connect to dind service over plain TCP. TLS is pointless inside the
-    # isolated CI sandbox network and would require volume-mounted certs
-    # across the inter-image boundary.
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_CLI_VERSION: "27.3.1"
+  # Do NOT declare a `variables:` block here. YAML merge keys (`<<:`) do
+  # shallow-merge, so jobs that extend this template (build_staging,
+  # build_production) already define `variables: {ENV_TAG: ...}` which
+  # would REPLACE this entire block and wipe DOCKER_CLI_VERSION etc.
+  # DOCKER_HOST / DOCKER_TLS_CERTDIR live in the global variables block
+  # (top of file, line ~58), which applies to all jobs unconditionally.
+  # The Docker CLI version is hardcoded in the curl URL below.
   retry:
     max: 1
     when:
@@ -170,9 +170,13 @@ typecheck:
   before_script:
     # amazon/aws-cli is minimal — ensure curl + tar + gzip are present
     - dnf install -y --quiet --allowerasing curl tar gzip >/dev/null 2>&1 || true
-    # Download Docker CLI static binary (single glibc binary, no daemon)
+    # Download Docker CLI static binary (single glibc binary, no daemon).
+    # Version hardcoded intentionally — see note above about shallow YAML merge
+    # wiping template-scoped `variables`. Bump this when upgrading the dind
+    # service tag (keep them roughly in sync, though client/daemon are
+    # forward/backward compatible within a major version).
     - |
-      curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" -o /tmp/docker.tgz
+      curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz" -o /tmp/docker.tgz
       tar -xzf /tmp/docker.tgz -C /tmp
       install /tmp/docker/docker /usr/local/bin/docker
       rm -rf /tmp/docker /tmp/docker.tgz
