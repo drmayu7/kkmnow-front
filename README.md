@@ -135,8 +135,6 @@ Baked into the JavaScript bundle at build time. Must be set as Docker `--build-a
 | `NEXT_PUBLIC_AUTHORIZATION_TOKEN` | Yes | Auth token for API requests |
 | `NEXT_PUBLIC_GA_TAG` | No | Google Analytics tag |
 | `NEXT_PUBLIC_MIXPANEL_TOKEN` | No | Mixpanel analytics token |
-| `NEXT_PUBLIC_TINYBIRD_TOKEN` | No | Tinybird analytics token |
-| `NEXT_PUBLIC_TINYBIRD_URL` | No | Tinybird API URL |
 | `NEXT_PUBLIC_TILESERVER_URL` | No | Map tile server URL |
 
 ### Runtime Variables (server-only)
@@ -286,8 +284,6 @@ docker build \
   --build-arg NEXT_PUBLIC_AUTHORIZATION_TOKEN="$NEXT_PUBLIC_AUTHORIZATION_TOKEN" \
   --build-arg NEXT_PUBLIC_GA_TAG="$NEXT_PUBLIC_GA_TAG" \
   --build-arg NEXT_PUBLIC_MIXPANEL_TOKEN="$NEXT_PUBLIC_MIXPANEL_TOKEN" \
-  --build-arg NEXT_PUBLIC_TINYBIRD_TOKEN="$NEXT_PUBLIC_TINYBIRD_TOKEN" \
-  --build-arg NEXT_PUBLIC_TINYBIRD_URL="$NEXT_PUBLIC_TINYBIRD_URL" \
   --build-arg NEXT_PUBLIC_TILESERVER_URL="$NEXT_PUBLIC_TILESERVER_URL" \
   --build-arg NEXT_PUBLIC_I18N_URL="$NEXT_PUBLIC_I18N_URL" \
   -t 624693141495.dkr.ecr.ap-southeast-5.amazonaws.com/kkmnow-frontend:main \
@@ -439,8 +435,6 @@ Configure in **Settings > CI/CD > Variables**.
 | `NEXT_PUBLIC_AUTHORIZATION_TOKEN` | *(staging auth token)* | Yes | Yes |
 | `NEXT_PUBLIC_GA_TAG` | *(optional)* | No | No |
 | `NEXT_PUBLIC_MIXPANEL_TOKEN` | *(staging token)* | No | Yes |
-| `NEXT_PUBLIC_TINYBIRD_TOKEN` | *(staging token)* | No | Yes |
-| `NEXT_PUBLIC_TINYBIRD_URL` | `https://api.tinybird.co` | No | No |
 | `NEXT_PUBLIC_TILESERVER_URL` | *(tile server URL)* | No | No |
 | `CF_DISTRIBUTION_ID` | `E2IEQUEBP9SU1W` | No | No |
 | `HEALTH_CHECK_URL` | `https://d1zofdcmpfqbdi.cloudfront.net` | No | No |
@@ -463,8 +457,6 @@ Configure in **Settings > CI/CD > Variables**.
 | `NEXT_PUBLIC_AUTHORIZATION_TOKEN` | *(production auth token)* | Yes | Yes |
 | `NEXT_PUBLIC_GA_TAG` | *(production GA tag)* | Yes | No |
 | `NEXT_PUBLIC_MIXPANEL_TOKEN` | *(production token)* | Yes | Yes |
-| `NEXT_PUBLIC_TINYBIRD_TOKEN` | *(production token)* | Yes | Yes |
-| `NEXT_PUBLIC_TINYBIRD_URL` | `https://api.tinybird.co` | Yes | No |
 | `NEXT_PUBLIC_TILESERVER_URL` | *(tile server URL)* | Yes | No |
 | `CF_DISTRIBUTION_ID` | *(from CDK output after first deploy)* | Yes | No |
 | `HEALTH_CHECK_URL` | *(production CloudFront domain)* | Yes | No |

@@ -5,30 +5,14 @@ import {
   createContext,
   useEffect,
   useState,
-  useContext,
 } from "react";
 import { useRouter } from "next/router";
-import { DateTime } from "luxon";
-import { v4 as uuidv4 } from "uuid";
-import { UAParser } from "ua-parser-js";
+import { get, post } from "../lib/api";
 
 /**
  * Realtime view count for dashboard & data-catalogue.
- * @param {MetaPage['meta']} meta
- * @returns {{analytics: }} cache
+ * Self-hosted analytics — replaces TinyBird.
  */
-
-/**
- * id (required):
- * type: "dashboard" | "data-catalogue"
- * metric" "view_count" | "download_png" | "download_csv" | "download_svg" | "download_parquet"
- */
-type MetricType =
-  | "view_count"
-  | "download_png"
-  | "download_csv"
-  | "download_svg"
-  | "download_parquet";
 
 export type DownloadFileFormat = "svg" | "png" | "csv" | "parquet";
 
@@ -47,8 +31,8 @@ type AnalyticsResult<T extends "dashboard" | "data-catalogue"> = {
 
 type AnalyticsContextProps<T extends "dashboard" | "data-catalogue"> = {
   result?: Partial<AnalyticsResult<T>>;
-  realtime_track: (id: string, type: Meta["type"], metric: MetricType) => void;
-  update_download: T extends "dasboard" ? never : (id: string, format: DownloadFileFormat) => void;
+  realtime_track: (id: string, type: Meta["type"]) => void;
+  update_download: T extends "dashboard" ? never : (id: string, format: DownloadFileFormat) => void;
   send_new_analytics: (
     id: string,
     type: "dashboard" | "data-catalogue" | "publication",
@@ -70,229 +54,78 @@ export const AnalyticsContext = createContext<
   AnalyticsContextProps<"dashboard" | "data-catalogue">
 >({
   result: {},
-  realtime_track(id, type, metric) {},
+  realtime_track() {},
   update_download() {},
-  send_new_analytics: async (id, type, pageEvent, additionalData) => {},
+  send_new_analytics: async () => {},
 });
-
-interface GeolocationData {
-  country: string;
-  city: string;
-  timestamp: number;
-}
-
-async function getGeolocation(): Promise<GeolocationData> {
-  const GEOLOCATION_CACHE_KEY = "userGeolocation";
-  const CACHE_DURATION = 24 * 60 * 60 * 1000;
-
-  const cachedData = localStorage.getItem(GEOLOCATION_CACHE_KEY);
-  if (cachedData) {
-    const parsedData: GeolocationData = JSON.parse(cachedData);
-    if (Date.now() - parsedData.timestamp < CACHE_DURATION) {
-      return parsedData;
-    }
-  }
-
-  try {
-    const response = await fetch("https://ipapi.co/json/");
-    if (!response.ok) {
-      throw new Error("Failed to fetch geolocation data");
-    }
-    const data = await response.json();
-    const geolocationData: GeolocationData = {
-      country: data.country_name,
-      city: data.city,
-      timestamp: Date.now(),
-    };
-
-    localStorage.setItem(GEOLOCATION_CACHE_KEY, JSON.stringify(geolocationData));
-
-    return geolocationData;
-  } catch (error) {
-    console.error("Error fetching geolocation:", error);
-    return {
-      country: "Unknown",
-      city: "Unknown",
-      timestamp: Date.now(),
-    };
-  }
-}
-
-function generateVisitorID(): string {
-  let visitorId = localStorage.getItem("visitorId");
-  if (!visitorId) {
-    visitorId = uuidv4();
-    localStorage.setItem("visitorId", visitorId);
-  }
-  return visitorId;
-}
-
-function getBrowser(): string {
-  const parser = new UAParser();
-  const result = parser.getBrowser();
-  if (!result.name) {
-    return "Unknown browser";
-  }
-  return result.name;
-}
-
-function getOS(): string {
-  const parser = new UAParser();
-  const result = parser.getOS();
-  if (!result.name) {
-    return "Unknown OS";
-  }
-  return result.name;
-}
 
 export const AnalyticsProvider: FunctionComponent<ContextChildren> = ({ meta, children }) => {
   const [data, setData] = useState<AnalyticsResult<"dashboard" | "data-catalogue"> | undefined>();
   const router = useRouter();
 
-  // send new analytics data when the component mounts or when the route change
+  // Auto-increment view count on mount and route change
   useEffect(() => {
-    let isInitialMount = true;
-    const handleRouteChange = () => {
-      if (isInitialMount) {
-        isInitialMount = false;
-        return;
-      }
-      sendNewAnalytics(
-        meta.id,
-        meta.type as "dashboard" | "data-catalogue" | "publication",
-        "page_view"
-      );
-    };
-
-    router.events.on("routeChangeComplete", handleRouteChange);
-    return () => {
-      router.events.off("routeChangeComplete", handleRouteChange);
-    };
-  }, [meta, router]);
-
-  // auto-increment view count for id
-  useEffect(() => {
-    track(meta.id, meta.type, "view_count");
+    track(meta.id, meta.type);
   }, [router.asPath]);
 
-  // Tinybird increment view count
-  const track = async (id: string, type: Meta["type"], metric: MetricType) => {
-    // Silent no-op when TinyBird is not configured for this environment.
-    // Prevents the relative-URL fetch that returns the Next.js HTML 404 page
-    // and throws `SyntaxError: Unexpected token '<'` when parsed as JSON.
-    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
+  const track = async (id: string, type: Meta["type"]) => {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/events?name=dgmy_views&wait=true`,
-        {
-          method: "POST",
-          headers: {
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_TINYBIRD_TOKEN}`,
-          },
-          body: JSON.stringify({
-            id: id,
-            timestamp: DateTime.now().toSQL({ includeOffset: false }),
-            type: type,
-          }),
-        }
-      );
+      // Fire-and-forget: record the page view
+      post("/analytics/event", {
+        event_type: "page_view",
+        page_id: id,
+        page_type: type,
+      }).catch(() => {}); // Silently ignore POST failures
 
-      // Get updated view-count after POST request completed
-      const updatedResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/pipes/dgmy_total_views_by_id.json?page_id=${id}&page_type=${type}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_TINYBIRD_TOKEN}`,
-          },
-        }
-      );
-      const { data } = await updatedResponse.json();
-
+      // Fetch updated counts
       if (type === "data-catalogue") {
-        const downloadsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/pipes/dgmy_dc_analytics.json?catalogue_id=${id}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_TINYBIRD_TOKEN}`,
-            },
-          }
-        );
-        if (downloadsResponse.ok) {
-          const { data: download_count } = await downloadsResponse.json();
-          const download_data = Object.assign(
-            {},
-            ...download_count.map((count: any) => {
-              if (count.type === "total_views" || count.type === "total_downloads") {
-                return { [count.type]: count.count };
-              } else {
-                return { [`download_${count.type}`]: count.count };
-              }
-            })
-          );
-
-          setData(download_data);
-        } else {
-          const download_data = {
-            download_csv: 0,
-            download_parquet: 0,
-            download_png: 0,
-            download_svg: 0,
-          };
-          setData({
-            ...data.find((item: any) => item.id === id && item.type === type),
-            ...download_data,
-          });
+        const response = await get(`/analytics/catalogue/${id}`);
+        const result = response.data?.data;
+        if (result) {
+          setData({ id, type, ...result });
         }
       } else {
-        setData(data.find((item: any) => item.id === id && item.type === type));
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  // For DC only. Tinybird update download count for DC.
-  const updateDownloadCount = async (id: string, format: DownloadFileFormat) => {
-    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/events?name=dgmy_dc_dls`,
-        {
-          method: "POST",
-          headers: {
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_TINYBIRD_TOKEN}`,
-          },
-          body: JSON.stringify({
-            id: id,
-            timestamp: DateTime.now().toSQL({ includeOffset: false }),
-            format: format,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setData(
-          data && {
-            ...data,
-            [`download_${format}`]: data[`download_${format}`] ? data[`download_${format}`] + 1 : 1,
-            [`total_downloads`]: data[`total_downloads`] ? data[`total_downloads`] + 1 : 1,
+        const response = await get("/analytics/views", { page_type: type });
+        const views = response.data?.data;
+        if (views) {
+          const match = views.find((item: any) => item.id === id && item.type === type);
+          if (match) {
+            setData({ ...match, id, type });
           }
-        );
+        }
       }
     } catch (error) {
-      console.error(error);
+      console.error("Analytics track error:", error);
     }
   };
 
-  // Send new data sources analytics to TinyBird
+  const updateDownloadCount = async (id: string, format: DownloadFileFormat) => {
+    try {
+      await post("/analytics/event", {
+        event_type: "file_download",
+        page_id: id,
+        page_type: "data-catalogue",
+        download_format: format,
+      });
+
+      // Optimistically increment local state
+      if (data) {
+        setData({
+          ...data,
+          [`download_${format}`]: (data[`download_${format}`] ?? 0) + 1,
+          total_downloads: (data.total_downloads ?? 0) + 1,
+        } as any);
+      }
+    } catch (error) {
+      console.error("Analytics download track error:", error);
+    }
+  };
+
+  /**
+   * Backward-compatible analytics call used by data-catalogue downloads
+   * and publication modal downloads. Routes through the same /analytics/event
+   * endpoint as update_download.
+   */
   const sendNewAnalytics = async (
     id: string,
     type: "dashboard" | "data-catalogue" | "publication",
@@ -303,66 +136,20 @@ export const AnalyticsProvider: FunctionComponent<ContextChildren> = ({ meta, ch
       resource_id?: number;
     }
   ) => {
-    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
     try {
-      const { country, city } = await getGeolocation();
-
-      let payload: any;
-
-      if (pageEvent === "page_view") {
-        payload = { type, id };
-      } else if (pageEvent === "file_download") {
-        if (type === "data-catalogue") {
-          payload = {
-            format: additionalData?.format,
-            type: "data-catalogue",
-            id,
-          };
-        } else if (type === "publication") {
-          payload = {
-            format: additionalData?.format,
-            type: "publication",
-            publication_id: additionalData?.publication_id,
-            resource_id: additionalData?.resource_id,
-          };
-        }
-      }
-
-      const analyticsData = {
-        timestamp: new Date().toISOString(),
-        country,
-        city,
-        unique_session_id: generateVisitorID(),
-        browser: getBrowser(),
-        os: getOS(),
-        screen_height: window.screen.height,
-        screen_width: window.screen.width,
-        device_language: navigator.language,
-        referer: document.referrer,
-        page_event: pageEvent,
-        domain: window.location.origin,
-        path: window.location.pathname,
-        payload: JSON.stringify(payload),
+      // Map to the backend analytics event format
+      const pageType = type === "publication" ? "data-catalogue" : type;
+      const payload: any = {
+        event_type: pageEvent,
+        page_id: additionalData?.publication_id ?? id,
+        page_type: pageType,
       };
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/events?name=opendata_analytics`,
-        {
-          method: "POST",
-          headers: {
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_TINYBIRD_TOKEN}`,
-          },
-          body: JSON.stringify(analyticsData),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to send new analytics data");
+      if (pageEvent === "file_download" && additionalData?.format) {
+        payload.download_format = additionalData.format;
       }
+      await post("/analytics/event", payload);
     } catch (error) {
-      console.error("Error sending new analytics data:", error);
+      console.error("Analytics send error:", error);
     }
   };
 

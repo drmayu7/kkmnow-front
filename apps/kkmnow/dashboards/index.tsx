@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Agency, WithData } from "datagovmy-ui/types";
 import { routes } from "@lib/routes";
 import { numFormat, toDate } from "datagovmy-ui/helpers";
+import { get } from "datagovmy-ui/api";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import dynamic from "next/dynamic";
 import { AKSARA_COLOR } from "datagovmy-ui/constants";
@@ -314,22 +315,10 @@ const DashboardCard: FunctionComponent<{ item: Dashboard }> = ({ item }) => {
   const [views, setViews] = useState<View[]>([]);
 
   useEffect(() => {
-    // Silent no-op when TinyBird is not configured for this environment.
-    if (!process.env.NEXT_PUBLIC_TINYBIRD_URL) return;
     const fetchViews = async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_TINYBIRD_URL}/pipes/dgmy_total_views_by_id.json`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_TINYBIRD_TOKEN}`,
-            },
-          }
-        );
-        const { data } = await response.json();
-        setViews(data);
+        const response = await get("/analytics/views", { page_type: "dashboard" });
+        setViews(response.data?.data ?? []);
       } catch (error) {
         console.error(error);
       }
