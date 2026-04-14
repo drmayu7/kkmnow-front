@@ -33,8 +33,6 @@
 #     NEXT_PUBLIC_AUTHORIZATION_TOKEN — Auth token (protected + masked)
 #     NEXT_PUBLIC_GA_TAG          — Google Analytics tag (optional)
 #     NEXT_PUBLIC_MIXPANEL_TOKEN  — Mixpanel token (optional, masked)
-#     NEXT_PUBLIC_TINYBIRD_TOKEN  — Tinybird token (optional, masked)
-#     NEXT_PUBLIC_TINYBIRD_URL    — Tinybird API URL (optional)
 #     NEXT_PUBLIC_TILESERVER_URL  — Map tile server URL (optional)
 #     CF_DISTRIBUTION_ID          — CloudFront distribution ID (from CDK output)
 #     HEALTH_CHECK_URL            — Public URL for smoke tests (CloudFront domain)
@@ -224,8 +222,6 @@ typecheck:
         --build-arg "NEXT_PUBLIC_AUTHORIZATION_TOKEN=$NEXT_PUBLIC_AUTHORIZATION_TOKEN" \
         --build-arg "NEXT_PUBLIC_GA_TAG=$NEXT_PUBLIC_GA_TAG" \
         --build-arg "NEXT_PUBLIC_MIXPANEL_TOKEN=$NEXT_PUBLIC_MIXPANEL_TOKEN" \
-        --build-arg "NEXT_PUBLIC_TINYBIRD_TOKEN=$NEXT_PUBLIC_TINYBIRD_TOKEN" \
-        --build-arg "NEXT_PUBLIC_TINYBIRD_URL=$NEXT_PUBLIC_TINYBIRD_URL" \
         --build-arg "NEXT_PUBLIC_TILESERVER_URL=$NEXT_PUBLIC_TILESERVER_URL" \
         --build-arg "NEXT_PUBLIC_I18N_URL=$NEXT_PUBLIC_I18N_URL" \
         -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
