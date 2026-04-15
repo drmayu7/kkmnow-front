@@ -25,6 +25,12 @@ export const getServerSideProps: GetServerSideProps = withi18n(
         ...query,
       })) as AxiosResponse<DCVariable>;
 
+      // Validate critical fields before rendering
+      if (!data || !Array.isArray(data.dataviz_set)) {
+        console.error(`Invalid API response for /data-catalogue/${params?.id}: missing dataviz_set`);
+        return { notFound: true };
+      }
+
       return {
         props: {
           meta: {

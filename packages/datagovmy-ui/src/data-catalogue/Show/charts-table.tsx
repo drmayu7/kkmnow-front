@@ -133,7 +133,10 @@ const DCChartsAndTable: FunctionComponent<ChartTableProps> = ({
   };
 
   const generateTableSchema = () => {
-    const columns = Array.isArray(dataset.table) ? Object.keys(dataset.table[0]) : [];
+    const columns =
+      Array.isArray(dataset.table) && dataset.table.length > 0
+        ? Object.keys(dataset.table[0])
+        : [];
     switch (dataset.type) {
       case "TIMESERIES":
       case "STACKED_AREA":

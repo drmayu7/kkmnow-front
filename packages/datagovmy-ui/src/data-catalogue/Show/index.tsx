@@ -42,12 +42,21 @@ const CatalogueShowWrapper: FunctionComponent<CatalogueShowWrapperProps> = ({
   meta,
   query,
 }) => {
-  const [selectedViz, setSelectedViz] = useState<DCDataViz>(
-    data.dataviz_set.find(item => item.dataviz_id === query.visual) ??
-      data.dataviz_set.find(item => item.chart_type === "TABLE") ??
-      data.dataviz_set[0]
+  const datavizSet = data.dataviz_set ?? [];
+  const [selectedViz, setSelectedViz] = useState<DCDataViz | undefined>(
+    datavizSet.find(item => item.dataviz_id === query.visual) ??
+      datavizSet.find(item => item.chart_type === "TABLE") ??
+      datavizSet[0]
   );
   const router = useRouter();
+
+  if (!selectedViz) {
+    return (
+      <Container className="min-h-screen flex items-center justify-center">
+        <p className="text-dim">No visualizations available for this dataset.</p>
+      </Container>
+    );
+  }
 
   const sliderOptions = useMemo(() => {
     if (!selectedViz.config.slider) {
@@ -72,9 +81,11 @@ const CatalogueShowWrapper: FunctionComponent<CatalogueShowWrapperProps> = ({
   }, [sliderOptions, query.date_slider]);
 
   const extractChartDataset = (table_data: Record<string, any>[], currentViz: DCDataViz) => {
+    if (!currentViz?.config?.format) return {};
+
     if (slider) {
       const groupedData = groupBy(table_data, currentViz.config.slider?.key);
-      const set = Object.entries(currentViz?.config.format).map(([key, value]) =>
+      const set = Object.entries(currentViz.config.format).map(([key, value]) =>
         recurDataMapping(key, value, groupedData[slider])
       );
       return {
@@ -82,7 +93,7 @@ const CatalogueShowWrapper: FunctionComponent<CatalogueShowWrapperProps> = ({
       };
     }
 
-    const set = Object.entries(currentViz?.config.format).map(([key, value]) =>
+    const set = Object.entries(currentViz.config.format).map(([key, value]) =>
       recurDataMapping(key, value, table_data)
     );
     return {
