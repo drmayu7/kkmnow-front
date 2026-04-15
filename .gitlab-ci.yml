@@ -53,6 +53,23 @@
 #       --task-definition kkmnow-frontend-production:<prev-revision> --region ap-southeast-5
 # ══════════════════════════════════════════════════════════════════════════════
 
+workflow:
+  rules:
+    # Skip pipeline entirely when only documentation files are modified.
+    # Uses an allowlist of source paths — if none match, no pipeline is created.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: &source_paths
+        - "apps/**/*"
+        - "packages/**/*"
+        - "infra/**/*"
+        - "scripts/**/*"
+        - ".gitlab-ci.yml"
+        - "turbo.json"
+        - "yarn.lock"
+        - "package.json"
+    - if: $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"
+      changes: *source_paths
+
 variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""

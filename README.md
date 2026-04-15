@@ -10,7 +10,7 @@ KKMNow (Kementerian Kesihatan Malaysia Now) is the official health data portal b
                  ┌──────────────────────────────────────────────┐
                  │               CloudFront (CDN)                │
                  │   Staging: d1zofdcmpfqbdi.cloudfront.net      │
-                 │   Production: <prod-cf-domain>.cloudfront.net │
+                 │   Production: d11sm8hqrx9aay.cloudfront.net   │
                  └─────────────────┬────────────────────────────┘
                                    │
               ┌────────────────────┴─────────────────────┐
@@ -163,7 +163,7 @@ Secrets Manager paths:
 | **Tasks** | 2 desired, auto-scales to 6 | 2 desired, auto-scales to 10 |
 | **Task Size** | 1 vCPU / 2 GB | 1 vCPU / 2 GB |
 | **ALB** | `kkmnow-staging-alb` (port 3000) | `kkmnow-production-alb` (port 3000) |
-| **CloudFront** | `E2IEQUEBP9SU1W` | *(from CDK output after first deploy)* |
+| **CloudFront** | `E2IEQUEBP9SU1W` | `E2HJ7FTP40EESD` |
 | **ECR Image Tag** | `:staging` | `:main` |
 | **Secrets Manager** | `kkmnow/staging/app-config` | `kkmnow/production/app-config` |
 
@@ -177,6 +177,25 @@ Secrets Manager paths:
 | `/*` (default) | ISR, origin-controlled | 0s default, up to 24h |
 
 `Accept-Language` is included in the cache key for non-static behaviors to serve EN and BM content correctly.
+
+### i18n Translation CDN
+
+Translations are served from a **separate CloudFront distribution** backed by the `kkmnow-i18n` S3 bucket.
+
+| Component | Value |
+|---|---|
+| **S3 Bucket** | `kkmnow-i18n` (ap-southeast-5) |
+| **CloudFront** | `E3VN3YU1CFBPS3` (`d6p41rr7tocpu.cloudfront.net`) |
+| **Cache Policy** | `Managed-Elemental-MediaPackage` (includes `Origin` in cache key) |
+| **Origin Request Policy** | `Managed-CORS-S3Origin` (forwards `Origin` to S3) |
+| **Response Headers Policy** | `Managed-SimpleCORS` (`Access-Control-Allow-Origin: *`) |
+
+**CORS cache key requirement:** The cache policy **must** include `Origin` in the cache key. Without it, CloudFront may serve a cached response (from a non-browser request) that lacks `Access-Control-Allow-Origin`, causing all client-side translation fetches to fail with `net::ERR_FAILED`. If the cache policy is ever changed, ensure `Origin` remains in the header whitelist.
+
+The i18n config is in `packages/datagovmy-ui/src/i18n/index.cjs`. It uses `i18next-http-backend` to fetch JSON translation files from `NEXT_PUBLIC_I18N_URL` at:
+```
+{NEXT_PUBLIC_I18N_URL}/{production|staging}/{en-GB|ms-MY}/{namespace}.json
+```
 
 ### CDK Infrastructure
 
@@ -376,6 +395,8 @@ Update the GitLab runner IAM policy `kkmnow-frontend-cloudfront-permission` to i
 | 403 during Docker build (static generation) | Env vars not resolved | Source full `.env` with `set -a && source .env && set +a` |
 | 401 Basic Auth on staging | Expected behavior | Middleware enforces Basic Auth when `NEXT_PUBLIC_APP_ENV=staging` |
 | Health check works but pages don't | `/api/*` bypasses middleware | Expected — health check is designed to bypass auth |
+| i18n shows raw keys + `net::ERR_FAILED` | i18n CloudFront cache policy missing `Origin` in cache key | Ensure cache policy includes `Origin` header (see [i18n Translation CDN](#i18n-translation-cdn)) |
+| React hydration errors (#418/#425) after i18n fix | Stale ISR cache has old HTML with raw keys | Wait for `ISR_REVALIDATE` (1h) or trigger on-demand revalidation via `/api/revalidate` |
 
 ## CI/CD Pipeline
 
@@ -458,8 +479,8 @@ Configure in **Settings > CI/CD > Variables**.
 | `NEXT_PUBLIC_GA_TAG` | *(production GA tag)* | Yes | No |
 | `NEXT_PUBLIC_MIXPANEL_TOKEN` | *(production token)* | Yes | Yes |
 | `NEXT_PUBLIC_TILESERVER_URL` | *(tile server URL)* | Yes | No |
-| `CF_DISTRIBUTION_ID` | *(from CDK output after first deploy)* | Yes | No |
-| `HEALTH_CHECK_URL` | *(production CloudFront domain)* | Yes | No |
+| `CF_DISTRIBUTION_ID` | `E2HJ7FTP40EESD` | Yes | No |
+| `HEALTH_CHECK_URL` | `https://d11sm8hqrx9aay.cloudfront.net` | Yes | No |
 | `LOAD_TEST_AUTH_USER` | `admin` | Yes | No |
 | `LOAD_TEST_AUTH_PASS` | *(production auth pass)* | Yes | Yes |
 
