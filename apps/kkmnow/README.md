@@ -25,9 +25,10 @@ The following are the environment variables (.env) used for data.gov.my. Please 
 | Variables                       | Required | Default                              | Description                                     |
 | ------------------------------- | -------- | ------------------------------------ | ----------------------------------------------- |
 | APP_URL                         | ⬜️       | http://localhost:3000 (development)  | App domain. Optional                            |
-| REVALIDATE_TOKEN                | ⬜️       |                                      | BE token to revalidate staitc site. Optional    |
+| REVALIDATE_TOKEN                | ⬜️       |                                      | BE token to revalidate static site. Optional    |
 | EDGE_CONFIG                     | ⬜️       |                                      | Add to use rolling token. Optional              |
 | NEXT_PUBLIC_APP_URL             | ⬜️       | $APP_URL                             | App domain, made public. Optional               |
+| NEXT_PUBLIC_APP_ENV             | ✅       | development                          | `development`, `staging`, or `production`. Controls middleware auth mode and i18n translation path |
 | NEXT_PUBLIC_I18N_URL            | ✅       | https://dlz3uh7rpztx1.cloudfront.net | i18n url. Used to serve translation json        |
 | NEXT_PUBLIC_AUTHORIZATION_TOKEN | ✅       | _Create own_                         | Authorization token for AKSARA BE communication |
 | NEXT_PUBLIC_API_URL             | ✅       | http://localhost:8000 (development)  | AKSARA BE base URL                              |
