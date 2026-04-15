@@ -54,10 +54,11 @@ export const withi18n = <T extends Context>(
         `public, s-maxage=${option.cache_expiry}, stale-while-revalidate=${option.cache_expiry}`
       );
 
-    // If getProps returned notFound or redirect, pass through without merging i18n props.
+    // If getProps returned notFound: true or redirect, pass through without merging i18n props.
     // Adding a `props` key alongside `notFound` or `redirect` causes Next.js to attempt
     // rendering the page component without the required data props, leading to crashes.
-    if ("notFound" in props || "redirect" in props) {
+    // Note: check the VALUE, not just key existence — `notFound: false` should still merge i18n.
+    if (("notFound" in props && props.notFound) || "redirect" in props) {
       return props;
     }
     return merge(props, { props: i18n });
